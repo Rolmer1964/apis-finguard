@@ -1,0 +1,44 @@
+name: Publish fin_orchestrator
+
+# Builda e publica a imagem do fin_orchestrator no ECR quando a pasta dele muda numa
+# push na master (develop nao dispara nada). Autentica na AWS via OIDC -
+# sem chave fixa guardada no GitHub. Nao mexe na EC2; o deploy continua
+# manual via tools/deploy.sh.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'fin_orchestrator/**'
+      - '.github/workflows/publish-fin_orchestrator.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciais AWS via OIDC (sem chave fixa)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login no ECR
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}
+
+      - name: Build, tag (latest + sha do commit) e push
+        run: |
+          SHA="$(git rev-parse --short HEAD)"
+          docker build -t fin_orchestrator:latest ./fin_orchestrator
+          docker tag fin_orchestrator:latest ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_orchestrator:latest
+          docker tag fin_orchestrator:latest ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_orchestrator:$SHA
+          docker push ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_orchestrator:latest
+          docker push ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_orchestrator:$SHA
+          echo "Publicado fin_orchestrator:$SHA"
