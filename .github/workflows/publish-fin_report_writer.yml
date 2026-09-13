@@ -1,0 +1,44 @@
+name: Publish fin_report_writer
+
+# Builda e publica a imagem do fin_report_writer no ECR quando a pasta dele muda numa
+# push na master (develop nao dispara nada). Autentica na AWS via OIDC -
+# sem chave fixa guardada no GitHub. Nao mexe na EC2; o deploy continua
+# manual via tools/deploy.sh.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'fin_report_writer/**'
+      - '.github/workflows/publish-fin_report_writer.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciais AWS via OIDC (sem chave fixa)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login no ECR
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}
+
+      - name: Build, tag (latest + sha do commit) e push
+        run: |
+          SHA="$(git rev-parse --short HEAD)"
+          docker build -t fin_report_writer:latest ./fin_report_writer
+          docker tag fin_report_writer:latest ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_report_writer:latest
+          docker tag fin_report_writer:latest ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_report_writer:$SHA
+          docker push ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_report_writer:latest
+          docker push ${{ vars.ECR_REGISTRY }}/apis-finguard/fin_report_writer:$SHA
+          echo "Publicado fin_report_writer:$SHA"
