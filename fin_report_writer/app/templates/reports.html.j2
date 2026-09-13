@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatórios — FinGuard</title>
+{% include '_style.html.j2' %}
+<style>
+  .app .dl-btn { color:white; padding:3px 10px; border-radius:4px; font-size:12px;
+            text-decoration:none; white-space:nowrap; background:var(--bordo-700); }
+  .app .dl-btn:hover { background:var(--bordo-800); }
+  .app .dl-none { color:#c7b1b8; white-space:nowrap; }
+  .app .recompose-btn { background:none; border:1px solid var(--muted); color:var(--text); padding:3px 10px;
+                   border-radius:4px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .app .recompose-btn:hover { background:var(--bordo-50); }
+  .app .recompose-ok  { color:#1f5c34; font-size:12px; white-space:nowrap; }
+  .app .recompose-err { color:#7a1a2b; font-size:12px; }
+  .app .del-btn { background:none; border:1px solid #e7a9b6; color:#7a1a2b; padding:3px 10px;
+             border-radius:4px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .app .del-btn:hover { background:#f6d9de; border-color:#e0546f; }
+</style>
+</head>
+<body class="app">
+{% set active = 'reports' %}
+{% include '_header.html.j2' %}
+<div class="app-body">
+<h1>Relatórios gerados</h1>
+<span class="muted">{{ total }} relatório(s) em /output — ordenados do mais recente para o mais antigo.</span>
+<table style="margin-top:12px">
+  <thead>
+    <tr>
+      <th>Report ID</th>
+      <th>Identificação</th>
+      <th>Arquivo</th>
+      <th>Tamanho</th>
+      <th>Relatório</th>
+      <th>Log</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if reports %}
+      {% for r in reports %}
+      <tr>
+        <td style="font-size:13px;font-family:monospace;white-space:nowrap">{{ r.ts_display }}</td>
+        <td style="font-size:13px;color:{% if r.label %}#2b1017{% else %}#c7b1b8{% endif %}">
+          {{ r.label if r.label else "—" }}
+        </td>
+        <td style="font-size:12px;color:{% if r.filename %}#5c1330{% else %}#c7b1b8{% endif %};white-space:nowrap">
+          {{ r.filename if r.filename else "—" }}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ r.size_kb }} KB</td>
+        <td>
+          <a href="/report/{{ r.stem }}" class="dl-btn">&#128196; Ver relatório</a>
+        </td>
+        <td>
+          {% if r.has_json %}
+          <button class="recompose-btn" onclick="recompose('{{ r.stem }}', this)">↺ Recompor log</button>
+          {% endif %}
+        </td>
+        <td>
+          <button class="del-btn" onclick="deleteReport('{{ r.stem }}', this)">✕ Deletar</button>
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="7" style="text-align:center;padding:32px;color:#c7b1b8">
+          Nenhum relatório gerado ainda. Processe um CSV para começar.
+        </td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>
+</div><!-- app-body -->
+{% raw %}
+<script>
+async function deleteReport(stem, btn) {
+  if (!confirm('Deletar o relatório ' + stem + '?\nEsta ação não pode ser desfeita.')) return;
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    const r = await fetch('/report/' + encodeURIComponent(stem), {method: 'DELETE'});
+    const d = await r.json();
+    if (r.ok) {
+      btn.closest('tr').remove();
+    } else {
+      btn.disabled = false;
+      btn.textContent = '✕ Deletar';
+      alert('Erro: ' + (d.detail || JSON.stringify(d)));
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '✕ Deletar';
+    alert('Falha na requisição: ' + e);
+  }
+}
+
+async function recompose(stem, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    const r = await fetch('/traces/recompose?stem=' + encodeURIComponent(stem), {method: 'POST'});
+    const d = await r.json();
+    if (r.ok) {
+      btn.outerHTML = '<span class="recompose-ok">✓ ' + d.recomposed + ' entradas</span>';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '↺ Recompor log';
+      alert('Erro: ' + (d.detail || JSON.stringify(d)));
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '↺ Recompor log';
+    alert('Falha na requisição: ' + e);
+  }
+}
+</script>
+{% endraw %}
+</body>
+</html>

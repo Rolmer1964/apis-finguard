@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>FinGuard — Inteligência que protege, triagem que decide</title>
+{% include '_style.html.j2' %}
+<style>
+  .app .pipeline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; font-size:13px; }
+  .app .pipeline .step { background:var(--bordo-100); padding:4px 12px; border-radius:999px; color:var(--bordo-800); font-weight:600; }
+  .app .pipeline .step.ok { background:#d1fae5; color:#065f46; }
+  .app .pipeline .arrow { color:var(--muted); }
+  .app .campo { margin-bottom:16px; }
+  .app .canal-select { max-width:280px; cursor:pointer; }
+  .app .canal-select option.canal-critico { color:#c0392b; }
+  .app .tabs { margin-top:20px; }
+  .app .tab-buttons { display:flex; gap:8px; border-bottom:1px solid var(--border); }
+  .app .tab-btn { padding:10px 18px; border:none; background:none; cursor:pointer; font-weight:600;
+    font-size:14px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; transition:.15s; }
+  .app .tab-btn:hover { color:var(--bordo-700); }
+  .app .tab-btn.active { color:var(--bordo-700); border-bottom-color:var(--bordo-600); }
+  .app .tab-panel[hidden] { display:none; }
+</style>
+</head>
+<body class="app">
+{% set active = 'index' %}
+{% include '_header.html.j2' %}
+<div class="app-body">
+
+<div>
+  <h1 style="margin-bottom:4px">Inteligência que protege, triagem que decide</h1>
+</div>
+
+<div class="pipeline">
+  <span class="step">Entrada segura</span>
+  <span class="arrow">→</span>
+  <span class="step">Triagem</span>
+  <span class="arrow">→</span>
+  <span class="step">Poderação de risco</span>
+  <span class="arrow">→</span>
+  <span class="step">Relatório</span>
+  <span class="arrow">→</span>
+  <span class="step">✓ Saída Segura</span>
+</div>
+
+<div class="tabs">
+  <div class="tab-buttons">
+    <button type="button" class="tab-btn active" data-tab="individual">Reclamação individual</button>
+    <button type="button" class="tab-btn" data-tab="lote">Processamento em lote</button>
+  </div>
+
+  <div class="tab-panel" data-panel="individual">
+    <form action="/analyze-form" method="post" class="card">
+      <label>Texto da reclamação</label>
+      <textarea name="text" rows="6" required placeholder="Ex.: Não estou satisfeito com..."></textarea>
+      <label style="margin-top:16px">Canal de origem</label>
+      <select name="canal" class="canal-select">
+        <option value="Web" selected>Web</option>
+        <option value="SAC">SAC</option>
+        <option value="Ouvidoria">Ouvidoria</option>
+        <option value="Redes Sociais">Redes Sociais</option>
+        <option value="Banco Central" class="canal-critico">Banco Central</option>
+        <option value="Procon" class="canal-critico">Procon</option>
+        <option value="Justiça" class="canal-critico">Poder Judiciário</option>
+      </select>
+      <label style="margin-top:12px">Sobre qual produto você quer falar (Preenchimento não obrigatório)</label>
+      <input name="product_hint" placeholder="Ex.: Contratação de crédito " />
+      <button type="submit">Enviar Reclamação</button>
+    </form>
+  </div>
+
+  <div class="tab-panel" data-panel="lote" hidden>
+    <div class="card">
+      <h3 style="margin-top:0">Processamento em lote</h3>
+      <p class="muted">CSV com colunas <code>id, texto_reclamacao, produto</code>. Gera <code>.json</code>, <code>.csv</code>, <code>.md</code> e <code>.html</code> em <code>output/</code>.</p>
+      <form action="/batch" method="post" enctype="multipart/form-data">
+        <div class="campo">
+          <label>Identificação do batch (opcional)</label>
+          <input type="text" name="label" placeholder="Ex.: Reprocessamento PII" maxlength="80" />
+        </div>
+        <div class="campo">
+          <input type="file" name="file" accept=".csv" required />
+        </div>
+        <button type="submit">Processar lote</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+</div><!-- app-body -->
+
+<!-- ── Overlay de processamento batch ───────────────────────────────────────── -->
+<div id="batch-overlay" style="display:none;position:fixed;inset:0;background:rgba(30,4,12,0.97);
+     z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <div style="color:#fbe4ea;font-size:20px;font-weight:700;font-family:'Playfair Display',Georgia,serif">🍷 Processando batch…</div>
+  <div id="ov-stats" style="color:#d6a3b3;font-size:13px;text-align:center;min-height:18px"></div>
+  <div id="snake-hud" style="width:360px;display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:2px;background:#2b0a16;
+       border:2px solid #7a1a35;border-bottom:none;border-radius:8px 8px 0 0;padding:14px 0 10px">
+    <div id="snake-score" style="color:#e0b64f;font-size:96px;font-family:monospace;
+         font-weight:700;line-height:0.9;letter-spacing:-4px">0</div>
+    <div style="font-size:11px;font-family:monospace;color:#a8798a;letter-spacing:2px;margin-top:4px">PONTUAÇÃO</div>
+    <div id="snake-record-line" style="font-size:12px;font-family:monospace;color:#e0b64f;min-height:16px;margin-top:2px"></div>
+  </div>
+  <canvas id="snake-canvas" width="360" height="360"
+          style="border:2px solid #7a1a35;border-top:none;border-radius:0 0 8px 8px;background:#2b0a16"></canvas>
+  <div style="color:#8a5568;font-size:12px">← ↑ ↓ → ou WASD para jogar enquanto aguarda</div>
+  <div id="ov-timer" style="color:#c94a6b;font-size:20px;font-family:monospace;min-height:28px"></div>
+</div>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = true; });
+    btn.classList.add('active');
+    document.querySelector('.tab-panel[data-panel="' + btn.dataset.tab + '"]').hidden = false;
+  });
+});
+</script>
+
+{% raw %}
+<script>
+// ── Snake ──────────────────────────────────────────────────────────────────────
+const CELL = 18, COLS = 20, ROWS = 20;
+let snake, dir, nextDir, food, score, loopId, gameOverPending;
+let snakeRecord = 0, snakeRecordDate = '';
+
+function loadRecord() {
+  fetch('/snake/record').then(r => r.json()).then(d => {
+    snakeRecord = d.record || 0;
+    snakeRecordDate = d.date || '';
+    updateRecordLine();
+  }).catch(() => {});
+}
+
+function checkRecord(pts) {
+  if (pts > snakeRecord) {
+    snakeRecord = pts;
+    snakeRecordDate = new Date().toLocaleDateString('pt-BR');
+    updateRecordLine();
+    fetch('/snake/record', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({record: snakeRecord, date: snakeRecordDate})
+    }).catch(() => {});
+  }
+}
+
+function updateRecordLine() {
+  const el = document.getElementById('snake-record-line');
+  if (!el) return;
+  el.textContent = snakeRecord > 0 ? '🏆 ' + snakeRecord + ' · ' + snakeRecordDate : '';
+}
+
+function snakeInit() {
+  snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir = {x:1,y:0}; nextDir = {x:1,y:0}; score = 0;
+  gameOverPending = false;
+  foodPlace();
+}
+
+function foodPlace() {
+  do { food = {x:Math.floor(Math.random()*COLS), y:Math.floor(Math.random()*ROWS)}; }
+  while (snake.some(s => s.x===food.x && s.y===food.y));
+}
+
+function snakeStep() {
+  if (gameOverPending) return;
+  dir = nextDir;
+  const head = {x:(snake[0].x+dir.x+COLS)%COLS, y:(snake[0].y+dir.y+ROWS)%ROWS};
+  if (snake.some(s => s.x===head.x && s.y===head.y)) {
+    gameOverPending = true;
+    checkRecord(score);
+    const scoreEl = document.getElementById('snake-score');
+    scoreEl.style.color = '#e0546f';
+    scoreEl.textContent = 'FIM';
+    setTimeout(() => {
+      scoreEl.style.color = '#e0b64f';
+      snakeInit();
+    }, 900);
+    return;
+  }
+  snake.unshift(head);
+  if (head.x===food.x && head.y===food.y) { score++; foodPlace(); } else { snake.pop(); }
+}
+
+function snakeDraw() {
+  const cv = document.getElementById('snake-canvas');
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#2b0a16'; cx.fillRect(0,0,cv.width,cv.height);
+  cx.fillStyle = '#e0b64f';
+  cx.fillRect(food.x*CELL+2, food.y*CELL+2, CELL-4, CELL-4);
+  snake.forEach((s,i) => {
+    cx.fillStyle = i===0 ? '#e0546f' : '#93213f';
+    cx.fillRect(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2);
+  });
+  if (!gameOverPending) {
+    document.getElementById('snake-score').textContent = score;
+  }
+}
+
+function snakeStart() {
+  if (loopId) clearInterval(loopId);
+  snakeInit();
+  loadRecord();
+  loopId = setInterval(() => { snakeStep(); snakeDraw(); }, 110);
+}
+
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1},
+    ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+    w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0}
+  };
+  const nd = map[e.key];
+  if (nd && !(nd.x===-dir.x && nd.y===-dir.y)) { nextDir=nd; e.preventDefault(); }
+});
+
+// ── Countdown ─────────────────────────────────────────────────────────────────
+let timerEl, timerInterval, startTs, estSecs;
+
+const _overtime = [
+  [ 30, '😅 Ah, não acredito que não terminou ainda…'],
+  [ 75, '🦗 Ok, AWS, tô aqui esperando…'],
+  [135, '☕ Já deu pra buscar um café e voltar.'],
+  [195, '🤔 Acho que o Haiku foi escrever um poema.'],
+  [255, '😴 Tô pensando em cobrar hora extra do Bedrock.'],
+  [300, '🏳️ Considerei montar uma barraca aqui.'],
+];
+
+function timerStart(secs) {
+  estSecs = secs; startTs = Date.now();
+  timerEl = document.getElementById('ov-timer');
+  function tick() {
+    const elapsed = (Date.now()-startTs)/1000;
+    const rem = estSecs - elapsed;
+    if (rem > 3) {
+      const m = Math.floor(rem/60), s = Math.floor(rem%60);
+      timerEl.textContent = '⏱ ~' + m + 'min ' + String(s).padStart(2,'0') + 's restantes';
+      timerEl.style.color = '#c94a6b';
+    } else {
+      const over = elapsed - estSecs;
+      const msg = _overtime.slice().reverse().find(([t]) => over >= t);
+      if (msg) {
+        timerEl.textContent = msg[1];
+        timerEl.style.color = '#e0b64f';
+      } else {
+        timerEl.textContent = '⏳ Finalizando…';
+        timerEl.style.color = '#c94a6b';
+      }
+    }
+  }
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+// ── Intercepta submit ─────────────────────────────────────────────────────────
+document.querySelector('form[action="/batch"]').addEventListener('submit', function() {
+  const file = this.querySelector('input[type="file"]').files[0];
+  const overlay = document.getElementById('batch-overlay');
+  overlay.style.display = 'flex';
+  snakeStart();
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const rows = Math.max(1, (ev.target.result.match(/\n/g)||[]).length - 1);
+      const est  = Math.max(37, Math.ceil(rows * 5.5) - 300);
+      document.getElementById('ov-stats').textContent =
+        rows + ' registro(s) · estimativa: ~' + Math.ceil(est/60) + ' min';
+      timerStart(est);
+    };
+    reader.readAsText(file);
+  }
+});
+</script>
+{% endraw %}
+
+</body>
+</html>

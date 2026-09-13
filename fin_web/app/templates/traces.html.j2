@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Log de Execuções — FinGuard</title>
+{% include '_style.html.j2' %}
+<style>
+  .app .legend { display:flex; gap:16px; margin-bottom:12px; font-size:12px; color:var(--muted); }
+  .app .dot { display:inline-block; width:10px; height:10px; border-radius:2px;
+         margin-right:4px; vertical-align:middle; }
+  tr.clickable { cursor:pointer; }
+  .app tr.clickable:hover td { background:var(--bordo-50); }
+</style>
+</head>
+<body class="app">
+
+{% set active = 'traces' %}
+{% include '_header.html.j2' %}
+<div class="app-body">
+<h1>Log de Execuções — {{ count }} registro(s)</h1>
+<span class="muted">Em memória desde o último restart. Logs completos estão no console (stdout).</span>
+
+{% macro stat_card(label, color, s) %}
+<div class="card" style="min-width:180px;flex:1;margin-top:0">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+              letter-spacing:.05em;color:{{ color }};margin-bottom:10px">{{ label }}</div>
+  <table style="width:100%;font-size:13px;border-collapse:collapse;box-shadow:none">
+    <tr><td style="color:var(--muted);padding:2px 0;border:none">Média</td>
+        <td style="text-align:right;font-weight:600;border:none">{{ s.mean }}ms</td></tr>
+    <tr><td style="color:var(--muted);padding:2px 0;border:none">Desvio Padrão</td>
+        <td style="text-align:right;font-weight:600;border:none">{{ s.stdev }}ms</td></tr>
+    <tr><td style="color:var(--muted);padding:2px 0;border:none">Coef. Variação</td>
+        <td style="text-align:right;font-weight:600;border:none">{{ s.cv }}%</td></tr>
+    <tr><td style="color:var(--muted);padding:2px 0;border:none">P50</td>
+        <td style="text-align:right;font-weight:600;border:none">{{ s.median }}ms</td></tr>
+    <tr style="border-top:1px solid var(--border)">
+        <td style="color:var(--muted);padding:4px 0 2px;border:none">P95</td>
+        <td style="text-align:right;font-weight:700;color:{{ color }};border:none">{{ s.p95 }}ms</td></tr>
+    <tr><td style="color:var(--muted);padding:2px 0;border:none">P99</td>
+        <td style="text-align:right;font-weight:700;color:{{ color }};border:none">{{ s.p99 }}ms</td></tr>
+  </table>
+</div>
+{% endmacro %}
+
+{% if has_data %}
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 20px">
+  {{ stat_card("Total E2E (todos)",        "#7a1a35", st.total_ms) }}
+  {{ stat_card("① Triagem (não bloq.)",   "#93213f", st.triage)   }}
+  {{ stat_card("② Risco + RAG (não bloq.)","#b8893f", st.risk)    }}
+  {{ stat_card("③ Relatório (não bloq.)", "#1f5c34", st.report)   }}
+</div>
+{% endif %}
+
+<div class="legend">
+  <span><span class="dot" style="background:#93213f"></span>Triagem (Haiku)</span>
+  <span><span class="dot" style="background:#b8893f"></span>Risco (Sonnet + RAG)</span>
+  <span><span class="dot" style="background:#3f8a5c"></span>Relatório (consolidação)</span>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>ID</th><th>Texto (preview)</th>
+      <th>Categoria</th><th>Urgência</th><th>Risco</th>
+      <th>Tempo por Agente</th><th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if traces %}
+      {% for t in traces %}
+      <tr class="clickable" onclick="openDetail('{{ t.trace_id }}')"{% if t.blocked %} style="background:#fdf3ec"{% endif %}>
+        <td><code>{{ t.trace_id }}</code></td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">
+          {% if t.blocked %}
+            <span style="background:#8a2331;color:white;font-size:10px;padding:2px 6px;
+                         border-radius:4px;font-weight:700">BLOQUEADO</span>
+          {% endif %}
+          {{ t.text_preview }}
+        </td>
+        <td style="font-size:12px">{{ t.category or '—' }}</td>
+        <td style="font-size:12px">{{ t.urgency_html | safe }}</td>
+        <td style="font-size:12px">{{ t.risk_level_html | safe }}</td>
+        <td>
+          {% if t.blocked %}
+            <div style="font-size:11px;color:#8a2331">
+              ⛔ Guardrail {{ t.gi_ms }}ms — pipeline não executado
+            </div>
+          {% else %}
+            <div style="display:flex;flex-direction:column;gap:2px;font-size:11px">
+              <div>
+                <span style="display:inline-block;width:{{ t.bar_triage }};height:8px;
+                             background:#93213f;border-radius:3px;vertical-align:middle;
+                             margin-right:4px"></span>Triagem {{ t.t_ms }}ms
+              </div>
+              <div>
+                <span style="display:inline-block;width:{{ t.bar_risk }};height:8px;
+                             background:#b8893f;border-radius:3px;vertical-align:middle;
+                             margin-right:4px"></span>Risco {{ t.r_ms }}ms
+              </div>
+              <div>
+                <span style="display:inline-block;width:{{ t.bar_report }};height:8px;
+                             background:#3f8a5c;border-radius:3px;vertical-align:middle;
+                             margin-right:4px"></span>Relatório {{ t.rp_ms }}ms
+              </div>
+            </div>
+          {% endif %}
+        </td>
+        <td style="font-weight:700;font-size:13px">{{ t.total_display }}ms</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="7" style="text-align:center;padding:32px;color:#c7b1b8">
+          Nenhuma execução ainda. Analise uma reclamação para ver o log.
+        </td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+</div><!-- app-body -->
+<script>
+// O log não tem INDEX local: o modal busca cada registro via proxy do fin_web.
+var RECORD_ENDPOINT = function(id) { return '/records/' + encodeURIComponent(id); };
+</script>
+{% include '_modal.html.j2' %}
+</body>
+</html>

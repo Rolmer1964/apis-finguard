@@ -1,0 +1,30 @@
+# Override de produção — usa as imagens publicadas no ECR em vez de buildar
+# local. Local (dev) continua com `docker compose up --build` usando só o
+# docker-compose.yml. Na EC2, use os dois arquivos juntos:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Publicar/atualizar as imagens: tools/publish_ecr.sh (roda local, faz
+# build+tag+push das 9 imagens). ECR_REGISTRY vem do .env
+# (default: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com).
+
+services:
+  fin_guardrail:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_guardrail:latest
+  fin_triage:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_triage:latest
+  fin_rag:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_rag:latest
+  fin_risk:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_risk:latest
+  fin_consolidate:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_consolidate:latest
+  fin_report_writer:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_report_writer:latest
+  fin_traces:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_traces:latest
+  fin_orchestrator:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_orchestrator:latest
+  fin_web:
+    image: ${ECR_REGISTRY}/apis-finguard/fin_web:latest

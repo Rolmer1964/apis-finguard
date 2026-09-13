@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Admin — FinGuard</title>
+{% include '_style.html.j2' %}
+<style>
+  .app-body.narrow { max-width:900px; }
+  .app .stat-row { display:flex; justify-content:space-between; align-items:center;
+              padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .app .stat-row:last-child { border-bottom:none; }
+  .app .stat-val { font-weight:700; font-size:18px; }
+  .app .stat-val.zero { color:#c7b1b8; }
+  .app .stat-val.ok   { color:#1f5c34; }
+  .app .stat-val.warn { color:#b8893f; }
+  .app .actions       { display:flex; justify-content:space-between; align-items:center;
+                   gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .app .actions-group { display:flex; gap:10px; flex-wrap:wrap; }
+  #result { margin-top:12px; padding:12px; border-radius:6px; font-size:13px;
+            font-family:monospace; white-space:pre; display:none; }
+  #result.ok  { background:#dcefe0; color:#1f5c34; }
+  #result.err { background:#f6d9de; color:#7a1a2b; }
+  .app .doc-list { font-size:13px; color:var(--text); margin:8px 0 0; padding-left:20px; }
+</style>
+</head>
+<body class="app">
+{% set active = 'admin' %}
+{% include '_header.html.j2' %}
+<div class="app-body narrow">
+<h1 style="margin-top:4px">Painel Administrativo</h1>
+<p class="muted">Gerenciamento de estado do FinGuard. Use antes ou após apresentações.</p>
+
+<div class="card">
+  <h3 style="margin-top:0">Estado atual</h3>
+
+  <div class="stat-row">
+    <div>
+      <strong>Relatórios gerados</strong>
+      <div class="muted">Arquivos em /output (JSON, CSV, MD, HTML)</div>
+    </div>
+    <span class="stat-val {{ 'ok' if n_out > 0 else 'zero' }}">{{ n_out }}</span>
+  </div>
+
+  <div class="stat-row">
+    <div>
+      <strong>Índice RAG — vetores</strong>
+      <div class="muted">Chunks da Política Interna indexados no FAISS</div>
+      <ul class="doc-list">{% for d in docs %}<li>{{ d }}</li>{% endfor %}</ul>
+    </div>
+    <span class="stat-val {{ 'ok' if n_vec > 0 else 'warn' }}">{{ n_vec if n_vec >= 0 else 'erro' }}</span>
+  </div>
+
+  <div class="stat-row">
+    <div>
+      <strong>Log de execuções (memória)</strong>
+      <div class="muted">Traces em memória desde o último restart</div>
+    </div>
+    <span class="stat-val {{ 'ok' if n_traces > 0 else 'zero' }}">{{ n_traces }}</span>
+  </div>
+
+  <div class="stat-row">
+    <div>
+      <strong>Bedrock Guardrail (Nível 3)</strong>
+      <div class="muted">ID: <code>{{ guardrail_id or 'não configurado' }}</code> · Versão: {{ guardrail_ver }}</div>
+    </div>
+    <span class="stat-val {{ 'ok' if guardrail_id else 'warn' }}"
+          title="{{ 'Ativo' if guardrail_id else 'Defina GUARDRAIL_ID no ambiente' }}">
+      {{ '✓ Ativo' if guardrail_id else '⚠ Fallback local' }}
+    </span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Documentos</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a href="/relatorio-tecnico" class="btn" style="margin-top:0">Rel. Técnico de Entrega</a>
+    <a href="/assets/presentation/analise_politica_pos_deploy.md" target="_blank" class="btn btn-outline" style="margin-top:0">Análise POL-SAC-001</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Ações</h3>
+  <div class="actions">
+    <div class="actions-group">
+      <button class="btn" style="margin-top:0" onclick="doIngest()">↺ Re-ingerir documentos</button>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:10px">
+    As ações de "zerar" (log, relatórios, índice RAG) não passam pelo
+    orquestrador — use os endpoints de cada serviço diretamente
+    (<code>DELETE {{ '{fin_traces}' }}/v1/traces</code>,
+    <code>POST {{ '{fin_rag}' }}/v1/rag/reset</code>,
+    <code>DELETE {{ '{fin_report_writer}' }}/v1/reports/&lt;stem&gt;</code>).
+  </p>
+  <div id="result"></div>
+</div>
+
+</div><!-- app-body -->
+{% raw %}
+<script>
+async function doIngest() {
+  setResult('Iniciando ingestão…', '');
+  const r = await fetch('/ingest', {method:'POST'});
+  const d = await r.json();
+  if (r.status === 409) { setResult(JSON.stringify(d, null, 2), 'err'); return; }
+  setResult('⏳ Ingestão em andamento — embedando chunks via Bedrock Titan…', '');
+  const poll = setInterval(async () => {
+    const s = await fetch('/ingest/status');
+    const st = await s.json();
+    if (st.status === 'done') {
+      clearInterval(poll);
+      setResult(JSON.stringify(st, null, 2), 'ok');
+      setTimeout(() => location.reload(), 1500);
+    } else if (st.status === 'error') {
+      clearInterval(poll);
+      setResult(JSON.stringify(st, null, 2), 'err');
+    } else {
+      setResult('⏳ Ingestão em andamento… ' + new Date().toLocaleTimeString(), '');
+    }
+  }, 2000);
+}
+
+function setResult(text, cls) {
+  const el = document.getElementById('result');
+  el.textContent = text;
+  el.className = cls;
+  el.style.display = 'block';
+}
+</script>
+{% endraw %}
+</body>
+</html>

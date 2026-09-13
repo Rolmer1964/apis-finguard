@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+.pytest_cache/
+.aws/*
+!.aws/.gitkeep
+output/
+
+# Chaves privadas — nunca versionar (EC2 SSH key)
+*.pem
+*.ppk
+
+# Artefatos locais / logs de build — não são código-fonte
+NUL
+*.log
+.claude/
+
+# Diário operacional das sessões — cheio de IDs de conta/guardrail/IP reais,
+# serve pra continuidade nossa entre sessões, não é doc de referência pra
+# quem lê o repo de fora. Fica só local.
+docs/PLANO_DIVISAO.md
+docs/SESSAO_*.md

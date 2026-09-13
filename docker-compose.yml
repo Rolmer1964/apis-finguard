@@ -1,0 +1,210 @@
+# apis_finguard — stack completo (9 serviços).
+#
+#   cp .env.example .env      # preencha AWS + GUARDRAIL_ID
+#   docker compose up --build
+#
+# Entrada: http://localhost:8008 (fin_web).  Docs de cada API em :<porta>/docs.
+#
+# fin_guardrail precisa de credencial AWS (Bedrock Guardrails) — sem
+# GUARDRAIL_ID válido ele não sobe, e o orquestrador/fin_web ficam parados
+# esperando o healthcheck. fin_triage/fin_risk chamam o Bedrock (Claude) por
+# padrão, ou a Anthropic API direto se ANTHROPIC_API_KEY estiver definida.
+# fin_rag usa embedding local (sentence-transformers) — sem AWS. As outras 4
+# (consolidate, report_writer, traces, orchestrator, web) sobem sem AWS.
+
+name: apis-finguard
+
+# ── credenciais AWS repassadas às folhas de Bedrock ─────────────────────────
+# Padrão: chaves estáticas (AWS_ACCESS_KEY_ID/SECRET/[SESSION_TOKEN]) do .env.
+# Para usar um profile de ~/.aws em vez das chaves: descomente as duas linhas
+# `AWS_PROFILE` abaixo E ajuste HOST_AWS_DIR no .env para o seu ~/.aws.
+# (NÃO deixe AWS_PROFILE definido e vazio — o botocore trata "" como um
+#  profile de nome vazio e falha com ProfileNotFound.)
+x-aws-env: &aws-env
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  # AWS_PROFILE: ${AWS_PROFILE:?defina AWS_PROFILE no .env para usar profile}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+
+# Monta ~/.aws (perfil + cache de SSO). Aponte HOST_AWS_DIR para o seu ~/.aws
+# quando usar AWS_PROFILE; o default (./.aws vazio) é inócuo com chaves estáticas.
+x-aws-creds: &aws-creds
+  - ${HOST_AWS_DIR:-./.aws}:/root/.aws:ro
+
+x-hc: &hc
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 40s
+
+services:
+
+  # ── folhas de Bedrock ────────────────────────────────────────────────────
+  fin_guardrail:
+    build: ./fin_guardrail
+    image: apis-finguard/fin_guardrail
+    environment:
+      <<: *aws-env
+      GUARDRAIL_ID: ${GUARDRAIL_ID:-}
+      GUARDRAIL_VERSION: ${GUARDRAIL_VERSION:-DRAFT}
+      GUARDRAIL_ID_OUTPUT: ${GUARDRAIL_ID_OUTPUT:-}
+      GUARDRAIL_VERSION_OUTPUT: ${GUARDRAIL_VERSION_OUTPUT:-DRAFT}
+      API_KEY: ${API_KEY:-}
+    volumes: *aws-creds
+    ports: ["8001:8001"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_triage:
+    build: ./fin_triage
+    image: apis-finguard/fin_triage
+    environment:
+      <<: *aws-env
+      BEDROCK_MODEL_TRIAGE: ${BEDROCK_MODEL_TRIAGE:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_KEY_SSM_PARAM: ${ANTHROPIC_API_KEY_SSM_PARAM:-}
+      PROBE_ON_STARTUP: ${PROBE_ON_STARTUP:-false}
+      API_KEY: ${API_KEY:-}
+    volumes: *aws-creds
+    ports: ["8002:8002"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_rag:
+    build: ./fin_rag
+    image: apis-finguard/fin_rag
+    environment:
+      EMBED_MODEL_NAME: ${EMBED_MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      EMBED_DIM: ${EMBED_DIM:-384}
+      RAG_DOCS_DIR: /app/assets/docs
+      RAG_INDEX_DIR: /app/assets/index
+      RAG_TOP_K: ${RAG_TOP_K:-4}
+      RAG_CHUNK_CHARS: ${RAG_CHUNK_CHARS:-1000}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-200}
+      PROBE_ON_STARTUP: ${PROBE_ON_STARTUP:-false}
+      INGEST_ON_STARTUP: ${INGEST_ON_STARTUP:-true}
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - ./fin_rag/assets/docs:/app/assets/docs:ro   # troque o PDF da política aqui
+      - rag_index:/app/assets/index                 # índice FAISS — persiste
+    ports: ["8003:8003"]
+    healthcheck:
+      <<: *hc
+      start_period: 120s   # ingestão no boot
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8003/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_risk:
+    build: ./fin_risk
+    image: apis-finguard/fin_risk
+    environment:
+      <<: *aws-env
+      BEDROCK_MODEL_RISK: ${BEDROCK_MODEL_RISK:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_KEY_SSM_PARAM: ${ANTHROPIC_API_KEY_SSM_PARAM:-}
+      PROBE_ON_STARTUP: ${PROBE_ON_STARTUP:-false}
+      API_KEY: ${API_KEY:-}
+    volumes: *aws-creds
+    ports: ["8004:8004"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8004/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  # ── folhas determinísticas (sem AWS) ─────────────────────────────────────
+  fin_consolidate:
+    build: ./fin_consolidate
+    image: apis-finguard/fin_consolidate
+    environment:
+      API_KEY: ${API_KEY:-}
+    ports: ["8005:8005"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8005/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_report_writer:
+    build: ./fin_report_writer
+    image: apis-finguard/fin_report_writer
+    environment:
+      OUTPUT_DIR: /app/output
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - report_output:/app/output   # relatórios gerados — persiste
+    ports: ["8006:8006"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8006/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_traces:
+    build: ./fin_traces
+    image: apis-finguard/fin_traces
+    environment:
+      TRACES_PERSIST_PATH: /app/data/traces.json
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - traces_data:/app/data   # log de execução — persiste entre restarts
+    ports: ["8007:8007"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8007/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  # ── glue ─────────────────────────────────────────────────────────────────
+  fin_orchestrator:
+    build: ./fin_orchestrator
+    image: apis-finguard/fin_orchestrator
+    environment:
+      GUARDRAIL_URL: http://fin_guardrail:8001
+      TRIAGE_URL: http://fin_triage:8002
+      RAG_URL: http://fin_rag:8003
+      RISK_URL: http://fin_risk:8004
+      CONSOLIDATE_URL: http://fin_consolidate:8005
+      REPORT_WRITER_URL: http://fin_report_writer:8006
+      TRACES_URL: http://fin_traces:8007
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-30}
+      API_KEY: ${API_KEY:-}
+      BATCH_MAX_WORKERS: ${BATCH_MAX_WORKERS:-5}
+      BATCH_RATE_LIMIT_DELAY: ${BATCH_RATE_LIMIT_DELAY:-0.0}
+      BATCH_MAX_RETRIES: ${BATCH_MAX_RETRIES:-2}
+      BATCH_MAX_PASSES: ${BATCH_MAX_PASSES:-3}
+      BATCH_RETRY_DELAY: ${BATCH_RETRY_DELAY:-15.0}
+    ports: ["8000:8000"]
+    depends_on:
+      fin_guardrail:     { condition: service_healthy }
+      fin_triage:        { condition: service_healthy }
+      fin_rag:           { condition: service_healthy }
+      fin_risk:          { condition: service_healthy }
+      fin_consolidate:   { condition: service_healthy }
+      fin_report_writer: { condition: service_healthy }
+      fin_traces:        { condition: service_healthy }
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+  fin_web:
+    build: ./fin_web
+    image: apis-finguard/fin_web
+    environment:
+      ORCHESTRATOR_URL: http://fin_orchestrator:8000
+      HTTP_TIMEOUT: ${WEB_HTTP_TIMEOUT:-120}
+      API_KEY: ${API_KEY:-}
+    ports: ["8008:8008"]
+    depends_on:
+      fin_orchestrator: { condition: service_healthy }
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8008/health',timeout=3).status==200 else 1)"]
+    restart: unless-stopped
+
+volumes:
+  rag_index:
+  report_output:
+  traces_data:

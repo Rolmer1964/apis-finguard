@@ -1,0 +1,25 @@
+<div class="app-topbar">
+  <a href="/" class="brand">&#128737;&#65039; FinGuard</a>
+  <nav class="app-nav">
+    <a href="/reports" {% if active == 'reports' %}class="active"{% endif %}>Relatórios</a>
+    <a href="/traces" {% if active == 'traces' %}class="active"{% endif %}>Log</a>
+    <a href="/politica-decisoria" {% if active == 'politica_decisoria' %}class="active"{% endif %}>Dados Decisórios</a>
+    <a href="#" onclick="openAdrModal();return false;">ADR</a>
+    <a href="/admin" {% if active == 'admin' %}class="active"{% endif %}>Admin</a>
+  </nav>
+</div>
+
+<div id="adr-modal" onclick="if(event.target===this)closeAdrModal()" style="display:none;position:fixed;inset:0;background:rgba(58,13,31,0.55);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fffdfd;border-radius:10px;width:92%;max-width:1020px;height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(58,13,31,0.35)">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #ecd9df;flex-shrink:0;background:#fbf1f4">
+      <span style="font-weight:600;font-size:14px;color:#3a0d1f">ADR-001 — Arquitetura de Triagem Automatizada de Reclamações Bancárias</span>
+      <button onclick="closeAdrModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#8a6270;padding:2px 8px;border-radius:4px;line-height:1" title="Fechar (Esc)">✕</button>
+    </div>
+    <iframe src="/adr" style="flex:1;border:none;width:100%"></iframe>
+  </div>
+</div>
+<script>
+function openAdrModal(){document.getElementById('adr-modal').style.display='flex';}
+function closeAdrModal(){document.getElementById('adr-modal').style.display='none';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAdrModal();});
+</script>

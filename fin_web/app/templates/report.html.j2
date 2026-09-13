@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>FinGuard — Relatório Gerencial</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% include '_style.html.j2' %}
+<style>
+  .app .kpi { display:flex; gap:16px; margin-bottom:24px; margin-top:16px; }
+  .app .kpi .card { flex:1; text-align:center; margin-top:0; }
+  .app .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; }
+  tr.clickable { cursor:pointer; }
+  .app tr.clickable:hover td { background:var(--bordo-50); }
+  .app tr.blocked td { background:#fdf3ec; }
+  .app tr.blocked:hover td { background:#f7e3d0; }
+  .app ul.recs li { margin:6px 0; }
+</style>
+</head>
+<body class="app">
+
+{% set active = 'report' %}
+{% include '_header.html.j2' %}
+<div class="app-body">
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+  <div>
+    <h1 style="margin:0">FinGuard — Relatório Gerencial</h1>
+    <div class="muted" style="margin-top:4px">Gerado em {{ generated_at }}</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="/output/{{ stem }}.json" download class="btn" style="margin-top:0">&#8659; JSON</a>
+    <a href="/output/{{ stem }}.csv" download class="btn btn-outline" style="margin-top:0">&#8659; CSV</a>
+    <a href="/output/{{ stem }}.md" download class="btn btn-ghost" style="margin-top:0">&#8659; Markdown</a>
+  </div>
+</div>
+
+<div class="kpi">
+  <div class="card kpi-card"><div class="v">{{ total }}</div><div class="l">Total de reclamações</div></div>
+  <div class="card kpi-card"><div class="v">{{ critical|length }}</div><div class="l">Críticas (urgência ou risco)</div></div>
+  {% if elapsed_s is not none %}
+  <div class="card">
+    <div style="font-size:13px;color:var(--muted);line-height:1.9">
+      <div><span style="font-weight:600;color:var(--text)">Início:</span> {{ started_at }}</div>
+      <div><span style="font-weight:600;color:var(--text)">Fim:</span> {{ finished_at }}</div>
+      <div><span style="font-size:18px;font-weight:700;color:var(--bordo-700)">{{ elapsed_fmt }}</span></div>
+    </div>
+    <div class="l" style="margin-top:4px;color:var(--muted)">Tempo de execução</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid">
+  <div class="card" style="margin-top:0"><h3 style="margin-top:0">Por categoria</h3><canvas id="chCategoria"></canvas></div>
+  <div class="card" style="margin-top:0"><h3 style="margin-top:0">Por canal</h3><canvas id="chCanal"></canvas></div>
+  <div class="card" style="margin-top:0"><h3 style="margin-top:0">Por produto</h3><canvas id="chProduto"></canvas></div>
+  <div class="card" style="margin-top:0"><h3 style="margin-top:0">Por urgência</h3><canvas id="chUrgencia"></canvas></div>
+  <div class="card" style="margin-top:0"><h3 style="margin-top:0">Por nível de risco</h3><canvas id="chRisco"></canvas></div>
+</div>
+
+{% if pass_stats %}
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-top:0">Passes de processamento — controle adaptivo (AIMD)</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+    <div style="flex:1;min-width:300px;overflow-x:auto">
+      <table style="font-size:12px">
+        <thead>
+          <tr>
+            <th>Passe</th><th>Workers</th><th>Delay(s)</th>
+            <th>Total</th><th>Sucesso</th><th>Throttled</th>
+            <th>Taxa</th><th>Duração</th><th>Vazão (reg/min)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in pass_stats %}
+          {% set rate = p.throttle_pct %}
+          <tr>
+            <td style="text-align:center;font-weight:700">{{ p.pass_num }}</td>
+            <td style="text-align:center">{{ p.workers }}</td>
+            <td style="text-align:center">{{ p.delay_s }}</td>
+            <td style="text-align:center">{{ p.total }}</td>
+            <td style="text-align:center;color:#1f5c34;font-weight:600">{{ p.success }}</td>
+            <td style="text-align:center;color:{% if p.throttled > 0 %}#7a1a2b{% else %}var(--muted){% endif %};font-weight:600">{{ p.throttled }}</td>
+            <td style="text-align:center">
+              <span style="padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700;
+                background:{% if rate > 20 %}#f6d9de;color:#7a1a2b{% elif rate > 5 %}#faf0cf;color:#7a5f0c{% else %}#dcefe0;color:#1f5c34{% endif %}">
+                {{ rate }}%
+              </span>
+            </td>
+            <td style="text-align:center">{{ p.duration_s }}s</td>
+            <td style="text-align:center">{{ p.throughput_rpm }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="flex:1;min-width:260px;max-width:420px">
+      <canvas id="chPasses" height="180"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-top:0">Recomendações</h3>
+  <ul class="recs">
+    {% for r in recommendations %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+</div>
+
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-top:0">Reclamações críticas</h3>
+  {% if critical %}
+  <div style="overflow-x:auto">
+  <table style="min-width:900px">
+    <thead>
+      <tr>
+        <th style="width:90px;white-space:nowrap">ID</th>
+        <th style="width:100px">Categoria</th>
+        <th style="width:90px">Produto</th>
+        <th style="width:62px">Urgência</th>
+        <th style="width:62px">Risco</th>
+        <th>Parecer de Risco</th>
+        <th style="width:30%">Ações imediatas</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in critical %}
+      <tr class="clickable" onclick="openDetail('{{ c.id }}', CRITICAL)">
+        <td style="font-family:monospace;font-size:11px;white-space:nowrap">{{ c.id }}</td>
+        <td style="font-size:12px">{{ c.category or '-' }}</td>
+        <td style="font-size:12px">{{ c.product or '-' }}</td>
+        <td>
+          {% set ul = (c.urgency or '').lower() %}
+          {% if ul.startswith('crít') %}<span class="pill crit">{{ c.urgency }}</span>
+          {% elif ul.startswith('alt') %}<span class="pill alta">{{ c.urgency }}</span>
+          {% elif ul.startswith('méd') or ul.startswith('med') %}<span class="pill media">{{ c.urgency }}</span>
+          {% elif ul.startswith('baix') %}<span class="pill baixa">{{ c.urgency }}</span>
+          {% else %}<span class="pill">{{ c.urgency or '-' }}</span>{% endif %}
+        </td>
+        <td>
+          {% set rl = (c.risk_level or '').lower() %}
+          {% if rl.startswith('crít') %}<span class="pill crit">{{ c.risk_level }}</span>
+          {% elif rl.startswith('alt') %}<span class="pill alta">{{ c.risk_level }}</span>
+          {% else %}<span class="pill">{{ c.risk_level or '-' }}</span>{% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--text)">{{ c.risk_justification | truncate(140, true, '…') }}</td>
+        <td>
+          {% set acoes = c.acoes_recomendadas or [] %}
+          {% if acoes %}
+          <ul style="margin:0;padding-left:14px;font-size:11px;color:var(--text);line-height:1.5">
+            {% for acao in acoes[:3] %}
+            <li style="margin-bottom:3px">{{ acao.split('(POL')[0].split('conforme')[0] | trim | truncate(72, true, '…') }}</li>
+            {% endfor %}
+            {% if acoes | length > 3 %}<li style="color:var(--muted)">+{{ acoes|length - 3 }} ação(ões)…</li>{% endif %}
+          </ul>
+          {% else %}-{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p>Nenhuma reclamação crítica no período.</p>{% endif %}
+</div>
+
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-top:0">Todas as reclamações</h3>
+  <table>
+    <thead><tr>
+      <th style="white-space:nowrap">ID</th>
+      <th style="white-space:nowrap">Canal</th>
+      <th style="white-space:nowrap">Categoria</th>
+      <th style="white-space:nowrap">Produto</th>
+      <th style="white-space:nowrap">Sentimento</th>
+      <th style="white-space:nowrap">Urgência</th>
+      <th style="white-space:nowrap">Risco</th>
+      <th>Resumo</th>
+    </tr></thead>
+    <tbody>
+    {% for r in results %}
+      {% set u = (r.urgency or '') %}
+      {% set rl = (r.risk_level or '') %}
+      <tr class="clickable{% if (r.category or '') == 'Bloqueado' %} blocked{% endif %}" onclick="openDetail('{{ r.id }}')">
+        <td style="white-space:nowrap;font-family:monospace;font-size:12px">{{ r.id }}</td>
+        <td style="white-space:nowrap">{{ r.canal or '-' }}</td>
+        <td style="white-space:nowrap">{{ r.category or '-' }}</td>
+        <td style="white-space:nowrap">{{ r.product or '-' }}</td>
+        <td style="white-space:nowrap">{{ r.sentiment or '-' }}</td>
+        <td style="white-space:nowrap">
+          {% set ul = u.lower() %}
+          {% if ul.startswith('crít') %}<span class="pill crit">{{ u }}</span>
+          {% elif ul.startswith('alt') %}<span class="pill alta">{{ u }}</span>
+          {% elif ul.startswith('méd') or ul.startswith('med') %}<span class="pill media">{{ u }}</span>
+          {% elif ul.startswith('baix') %}<span class="pill baixa">{{ u }}</span>
+          {% else %}<span class="pill">{{ u or '-' }}</span>{% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% set rll = rl.lower() %}
+          {% if rll.startswith('crít') %}<span class="pill crit">{{ rl }}</span>
+          {% elif rll.startswith('alt') %}<span class="pill alta">{{ rl }}</span>
+          {% elif rll.startswith('méd') or rll.startswith('med') %}<span class="pill media">{{ rl }}</span>
+          {% elif rll.startswith('baix') %}<span class="pill baixa">{{ rl }}</span>
+          {% else %}<span class="pill">{{ rl or '-' }}</span>{% endif %}
+        </td>
+        <td>{{ r.summary or '-' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</div><!-- app-body -->
+
+<script>
+var RECORDS = {{ results | tojson }};
+var CRITICAL = {{ critical | tojson }};
+var INDEX = {};
+RECORDS.forEach(function(r) { INDEX[r.id] = r; });
+// Fallback do modal quando o id não está no INDEX local: busca o registro
+// via proxy do fin_web -> fin_orchestrator -> fin_report_writer (busca global).
+var RECORD_ENDPOINT = function(id) {
+  return '/records/' + encodeURIComponent(id);
+};
+</script>
+
+{% include '_modal.html.j2' %}
+
+<script>
+function bar(id, data, color) {
+  var labels = Object.keys(data);
+  var values = Object.values(data);
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: values, backgroundColor: color, borderRadius: 4 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+}
+bar('chCategoria', {{ by_category|tojson }}, '#93213f');
+bar('chCanal',     {{ by_canal|tojson }},    '#b02c50');
+bar('chProduto',   {{ by_product|tojson }},  '#7a1a35');
+bar('chUrgencia',  {{ by_urgency|tojson }},  '#c94a6b');
+bar('chRisco',     {{ by_risk|tojson }},     '#551227');
+
+{% if pass_stats %}
+(function() {
+  var ps = {{ pass_stats | tojson }};
+  var labels  = ps.map(function(p){ return 'Passe ' + p.pass_num; });
+  new Chart(document.getElementById('chPasses'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Sucesso',   data: ps.map(function(p){ return p.success; }),   backgroundColor: '#1f5c34', yAxisID: 'y' },
+        { label: 'Throttled', data: ps.map(function(p){ return p.throttled; }), backgroundColor: '#b02c50', yAxisID: 'y' },
+        { label: 'Taxa throttle %', data: ps.map(function(p){ return p.throttle_pct; }),
+          type: 'line', borderColor: '#b8893f', backgroundColor: 'transparent',
+          pointBackgroundColor: '#b8893f', borderWidth: 2, yAxisID: 'y2' },
+        { label: 'Workers', data: ps.map(function(p){ return p.workers; }),
+          type: 'line', borderColor: '#7a1a35', backgroundColor: 'transparent',
+          pointBackgroundColor: '#7a1a35', borderWidth: 2, borderDash: [4,3], yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: {
+        x:  { stacked: true },
+        y:  { stacked: true, beginAtZero: true, ticks: { precision: 0 },
+               title: { display: true, text: 'Registros', font: { size: 10 } } },
+        y2: { position: 'right', beginAtZero: true, max: 100,
+               title: { display: true, text: '% / Workers', font: { size: 10 } },
+               grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+})();
+{% endif %}
+</script>
+</body>
+</html>

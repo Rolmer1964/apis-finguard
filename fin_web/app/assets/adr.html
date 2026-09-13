@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>FinGuard — ADR-001</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; color: #1f2937; line-height: 1.6; background: #f9fafb; }
+  nav { position: sticky; top: 0; background: white; border-bottom: 1px solid #e5e7eb; padding: 8px 24px; z-index: 10; display: flex; gap: 16px; flex-wrap: wrap; }
+  nav a { color: #2563eb; text-decoration: none; font-size: 13px; }
+  nav a:hover { text-decoration: underline; }
+  .container { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+  h1 { margin: 0 0 4px 0; font-size: 22px; }
+  .subtitle { font-size: 14px; color: #6b7280; margin-bottom: 8px; }
+  .badge-status { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #d1fae5; color: #065f46; margin-bottom: 24px; }
+  section { margin-bottom: 40px; }
+  h2 { border-bottom: 2px solid #2563eb; padding-bottom: 4px; font-size: 17px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px 0; color: #374151; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th, td { padding: 8px 10px; border: 1px solid #e5e7eb; text-align: left; vertical-align: top; font-size: 13px; }
+  th { background: #f3f4f6; font-weight: 600; }
+  code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: "SF Mono", "Fira Code", monospace; }
+  pre code { display: block; padding: 10px 14px; line-height: 1.5; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 4px 0; font-size: 14px; }
+  p { font-size: 14px; margin: 6px 0; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag.green { background: #d1fae5; color: #065f46; }
+  .tag.red { background: #fee2e2; color: #991b1b; }
+  .tag.yellow { background: #fef3c7; color: #92400e; }
+  .callout { background: #eff6ff; border-left: 3px solid #2563eb; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="#contexto">1. Contexto</a>
+  <a href="#decisao">2. Decisão</a>
+  <a href="#alternativas">3. Alternativas</a>
+  <a href="#consequencias">4. Consequências</a>
+  <a href="#riscos">5. Riscos e Trade-offs</a>
+  <a href="#sla">6. SLA e Escalonamento</a>
+  <a href="#seguranca">7. Segurança e Compliance</a>
+  <a href="#observabilidade">8. Observabilidade</a>
+</nav>
+
+<div class="container">
+
+<h1>ADR-001 — Arquitetura de Triagem Automatizada de Reclamações Bancárias com Guardrails e Escalonamento Regulatório</h1>
+<div class="subtitle">FinGuard · Hackathon Future Minds 3 · Grupo 23TB · Nível 3 — Arquiteto da Solução</div>
+<span class="badge-status">Status: Ativo</span>
+
+<!-- ── 1. Contexto ─────────────────────────────────────────────────────────── -->
+<section id="contexto">
+<h2>1. Contexto</h2>
+<p>Instituições financeiras recebem reclamações por múltiplos canais — SAC, Ouvidoria, Banco Central, Procon e redes sociais. O texto chega não-padronizado, com diferentes níveis de urgência regulatória e risco reputacional. A triagem manual é lenta, inconsistente e propensa a erros nos picos de volume.</p>
+<p>Além do volume operacional, a entrada de texto livre cria superfície de ataque para <strong>prompt injection</strong> e exfiltração de dados internos via LLM.</p>
+<p>O <strong>FinGuard</strong> foi projetado para automatizar essa triagem com um pipeline de agentes de IA auditável, com guardrails de conteúdo obrigatórios e aderência às políticas internas de SLA e escalonamento (POL-SAC-001).</p>
+</section>
+
+<!-- ── 2. Decisão ──────────────────────────────────────────────────────────── -->
+<section id="decisao">
+<h2>2. Decisão</h2>
+<p>Adotado <strong>LangGraph + AWS Bedrock Runtime</strong> com pipeline de 5 nós em sequência fixa e <strong>early-exit obrigatório após guardrail de entrada</strong>:</p>
+<pre><code>input_guard ──► triage ──► risk ──► report ──► output_guard
+      │
+      └── [BLOQUEADO] → retorna imediatamente, não consome triage/risk</code></pre>
+
+<table>
+  <thead><tr><th>Nó</th><th>Responsabilidade</th><th>Implementação</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>input_guard</code></td>
+      <td>Valida a entrada: bloqueia prompt injection, jailbreak, conteúdo fora de escopo e ameaças</td>
+      <td>AWS Bedrock Guardrails (<code>apply_guardrail</code>, source=INPUT)</td>
+    </tr>
+    <tr>
+      <td><code>triage</code></td>
+      <td>Classifica em 5 dimensões: categoria, produto, sentimento, urgência, resumo</td>
+      <td>Claude Haiku 4.5 (via Bedrock inference profile)</td>
+    </tr>
+    <tr>
+      <td><code>risk</code></td>
+      <td>Avalia risco regulatório e conformidade contra a política interna</td>
+      <td>Claude Sonnet 4.5 + RAG semântico (Titan Embed v2 + FAISS)</td>
+    </tr>
+    <tr>
+      <td><code>report</code></td>
+      <td>Consolida payload final estruturado (sem LLM adicional)</td>
+      <td>Lógica determinística Python</td>
+    </tr>
+    <tr>
+      <td><code>output_guard</code></td>
+      <td>Redação de PII e verificação de conteúdo da resposta</td>
+      <td>Regex local (CPF, conta, cartão) + Bedrock Guardrails (source=OUTPUT)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Regra de early-exit:</strong> registros com <code>action = "GUARDRAIL_INTERVENED"</code> no <code>input_guard</code> recebem <code>categoria = "Bloqueado"</code> e não percorrem os nós de triagem e risco. Isso elimina consumo desnecessário de tokens e impede que tentativas de engenharia social contaminem as métricas regulatórias.
+</div>
+
+<h3>Modelo por nó — justificativa de custo</h3>
+<table>
+  <thead><tr><th>Etapa</th><th>Modelo</th><th>Custo aprox. (us-east-1)</th><th>Justificativa</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Triagem</td>
+      <td>Claude Haiku 4.5</td>
+      <td>$0,25 / $1,25 por 1M tokens (in/out)</td>
+      <td>Classificação determinística com prompt curto. Haiku entrega &gt;95% da qualidade do Sonnet a ~1/12 do custo.</td>
+    </tr>
+    <tr>
+      <td>Risco / conformidade</td>
+      <td>Claude Sonnet 4.5</td>
+      <td>$3,00 / $15,00 por 1M tokens (in/out)</td>
+      <td>Requer raciocínio sobre política interna e detecção sutil de risco regulatório. O Sonnet justifica o custo extra apenas onde o Haiku erraria.</td>
+    </tr>
+    <tr>
+      <td>Embeddings (RAG)</td>
+      <td>Amazon Titan Embed Text v2 (1024 dim)</td>
+      <td>$0,02 por 1M tokens</td>
+      <td>Baixa latência (~100 ms/chunk) e custo desprezível na ingestão.</td>
+    </tr>
+    <tr>
+      <td>Consolidação</td>
+      <td>(sem LLM)</td>
+      <td>$0</td>
+      <td>Agregação JSON em código Python. Nenhum ganho em usar LLM aqui.</td>
+    </tr>
+    <tr>
+      <td>Guardrails</td>
+      <td>AWS Bedrock Guardrails</td>
+      <td>$0,75 por 1k policy units</td>
+      <td>Validação obrigatória de entrada e saída. Custo proporcional ao tamanho do input.</td>
+    </tr>
+  </tbody>
+</table>
+<p style="font-size:12px;color:#6b7280;margin-top:4px">Custo médio por reclamação: ~$0,005 (~R$ 0,025). ~80% das chamadas no Haiku, ~20% no Sonnet.</p>
+</section>
+
+<!-- ── 3. Alternativas ─────────────────────────────────────────────────────── -->
+<section id="alternativas">
+<h2>3. Alternativas Consideradas</h2>
+<table>
+  <thead><tr><th>Opção</th><th>Prós</th><th>Contras</th><th>Decisão</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>A. LangGraph + Bedrock Runtime</strong></td>
+      <td>Pipeline explícito e auditável; controle total dos nós; portável; debug local fácil; lock-in em uma única camada de cliente.</td>
+      <td>Responsabilidade pela orquestração, logs e retry/erros.</td>
+      <td><span class="tag green">Escolhida</span></td>
+    </tr>
+    <tr>
+      <td><strong>B. AWS Bedrock Agents</strong> (gerenciado)</td>
+      <td>Orquestração e memória gerenciadas; integra Knowledge Bases nativamente; trace no console AWS.</td>
+      <td>Lock-in AWS profundo; raciocínio dinâmico pode pular passos (inaceitável para auditoria); Action Groups exigem Lambda.</td>
+      <td><span class="tag red">Rejeitada</span></td>
+    </tr>
+    <tr>
+      <td><strong>C. Pipeline ad-hoc</strong> (script linear)</td>
+      <td>Zero dependências além do boto3; mais simples.</td>
+      <td>Sem state machine, sem rotas condicionais para o guardrail; difícil evoluir; retrabalho garantido para produção.</td>
+      <td><span class="tag red">Rejeitada</span></td>
+    </tr>
+    <tr>
+      <td><strong>D. Triagem manual com formulário estruturado</strong></td>
+      <td>Sem custo de LLM; totalmente previsível.</td>
+      <td>Não escala; inconsistente entre analistas; não resolve o problema central de texto livre não-padronizado.</td>
+      <td><span class="tag red">Rejeitada</span></td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ── 4. Consequências ───────────────────────────────────────────────────── -->
+<section id="consequencias">
+<h2>4. Consequências</h2>
+<h3>Positivas</h3>
+<ul>
+  <li>Ordem dos nós é determinística e totalmente auditável; cada nó loga entrada, saída e tempo com <code>trace_id</code>.</li>
+  <li>Trocar o provedor de LLM (Bedrock → OpenAI / Ollama) exige alterar um único arquivo (<code>graph.py</code>); RAG e guardrails são pluggáveis.</li>
+  <li>Early-exit no <code>input_guard</code> isola tentativas de engenharia social das métricas regulatórias.</li>
+  <li>Separação clara Haiku/Sonnet reduz custo em ~80% frente a usar Sonnet em todos os nós.</li>
+  <li>RAG semântico com Titan v2 + FAISS permite consulta à política interna sem expor o documento completo ao LLM a cada chamada.</li>
+</ul>
+<h3>Negativas</h3>
+<ul>
+  <li>Sem memória entre execuções (cada análise é stateless); para análise contínua precisaria persistir contexto.</li>
+  <li>Latência síncrona de <strong>12–16 s por reclamação</strong> (mediana ≈ 14 s, P95 ≈ 16 s, medido em 484 registros dos batches de 29/04/2026). O nó <code>risk</code> (Sonnet + RAG) responde por ~67% do tempo total (~9,3 s); guardrails somam ~2,6 s; triagem ~2,1 s. Aceitável para demo e batch; em produção mover para fila assíncrona.</li>
+  <li>Dependência de inference profiles regionais do Bedrock — IDs de modelo mudam entre regiões AWS.</li>
+</ul>
+</section>
+
+<!-- ── 5. Riscos e Trade-offs ─────────────────────────────────────────────── -->
+<section id="riscos">
+<h2>5. Riscos e Trade-offs</h2>
+<table>
+  <thead><tr><th>Risco</th><th>Probabilidade</th><th>Mitigação</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Prompt injection via texto de reclamação</td>
+      <td><span class="tag yellow">Média</span></td>
+      <td>Guardrail de entrada com denied topics, content filters e sensitive information filters.</td>
+    </tr>
+    <tr>
+      <td>Throttling AWS Bedrock em processamento batch</td>
+      <td><span class="tag yellow">Alta em free tier</span></td>
+      <td>Algoritmo AIMD (Additive Increase / Multiplicative Decrease) ajusta workers e delay dinamicamente a cada passo de batch.</td>
+    </tr>
+    <tr>
+      <td>Vazamento de PII na resposta do LLM</td>
+      <td><span class="tag yellow">Baixa</span></td>
+      <td>Defesa em profundidade: regex local (primeira camada) + Bedrock Sensitive Information Filters (segunda camada).</td>
+    </tr>
+    <tr>
+      <td>Lock-in no AWS Bedrock</td>
+      <td><span class="tag green">Gerenciada</span></td>
+      <td>Cliente Bedrock encapsulado em <code>graph.py</code>; interface de modelos desacoplada via settings.</td>
+    </tr>
+    <tr>
+      <td>RAG com índice desatualizado</td>
+      <td><span class="tag green">Baixa</span></td>
+      <td>Endpoint <code>POST /ingest</code> dispara re-ingestão incremental; manifest com hash por arquivo detecta mudanças.</td>
+    </tr>
+    <tr>
+      <td>Entradas maliciosas contaminando métricas regulatórias</td>
+      <td><span class="tag yellow">Média sem early-exit</span></td>
+      <td>Categoria "Bloqueado" excluída dos KPIs de triagem, risco e sentimento; contada apenas em canal e volume.</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ── 6. SLA e Escalonamento ─────────────────────────────────────────────── -->
+<section id="sla">
+<h2>6. SLA e Escalonamento Regulatório</h2>
+<p>Regras de escalonamento derivadas da POL-SAC-001 e codificadas nos agentes de triagem e risco:</p>
+<table>
+  <thead><tr><th>Nível de Urgência</th><th>Prazo de Resposta</th><th>Gatilhos típicos</th><th>Área responsável</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Crítico</strong></td>
+      <td>≤ 2 h</td>
+      <td>Menção ao Banco Central ou Procon, ameaça de judicialização, risco sistêmico ou fraude comprovada</td>
+      <td>Compliance + Jurídico</td>
+    </tr>
+    <tr>
+      <td><strong>Alto</strong></td>
+      <td>≤ 4 h</td>
+      <td>Perda patrimonial expressiva, ameaça reputacional direta, bloqueio de conta indevido</td>
+      <td>Gerência de Operações</td>
+    </tr>
+    <tr>
+      <td><strong>Médio</strong></td>
+      <td>≤ 24 h</td>
+      <td>Inconformidade contratual, cobrança indevida, falha de produto sem perda imediata</td>
+      <td>Atendimento ao Cliente</td>
+    </tr>
+    <tr>
+      <td><strong>Baixo</strong></td>
+      <td>≤ 72 h</td>
+      <td>Dúvidas operacionais, sugestões, insatisfação sem impacto financeiro</td>
+      <td>Atendimento ao Cliente</td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>Paradoxo Baixa+Crítico:</strong> quando o agente de risco eleva o nível para Crítico mesmo com urgência classificada como Baixa pelo agente de triagem, o sistema sinaliza o caso com destaque visual e mantém o prazo de 2h. Isso captura reclamações onde o texto é discreto mas o risco regulatório é alto.
+</div>
+</section>
+
+<!-- ── 7. Segurança e Compliance ──────────────────────────────────────────── -->
+<section id="seguranca">
+<h2>7. Segurança e Compliance</h2>
+<ul>
+  <li><strong>Guardrail de entrada (Bedrock):</strong> bloqueia prompt injection, jailbreak, exfiltração de sistema e conteúdo fora do escopo bancário. Resposta de bloqueio educada em PT-BR sem expor internals.</li>
+  <li><strong>Guardrail de saída (regex + Bedrock):</strong> redação local de CPF, conta e cartão (defesa primária) + Bedrock Sensitive Information Filters (defesa em profundidade).</li>
+  <li><strong>RAG isolado:</strong> índice FAISS em volume local; nenhum dado de cliente sai do container durante consulta semântica.</li>
+  <li><strong>Sem persistência sensível:</strong> sistema stateless; sem banco de dados com dados de clientes.</li>
+  <li><strong>Sem credenciais hard-coded:</strong> AWS via <code>.env</code> (IAM Role em produção).</li>
+  <li><strong>Logs estruturados com trace_id:</strong> nenhum payload pessoal nos logs — apenas metadados e resumos já sanitizados pelo <code>output_guard</code>.</li>
+  <li><strong>Entradas bloqueadas:</strong> texto original não é registrado nos relatórios gerenciais; apenas categoria "Bloqueado" e canal são contados.</li>
+</ul>
+</section>
+
+<!-- ── 8. Observabilidade ─────────────────────────────────────────────────── -->
+<section id="observabilidade">
+<h2>8. Observabilidade e Métricas</h2>
+<h3>Por execução</h3>
+<ul>
+  <li><code>trace_id</code> único por reclamação, propagado em todos os nós.</li>
+  <li><code>timings_ms</code>: <code>guardrail_input</code>, <code>triage</code>, <code>risk</code>, <code>report</code>, <code>guardrail_output</code>.</li>
+  <li><code>total_ms</code> inclui todos os cinco componentes, inclusive guardrails.</li>
+</ul>
+<h3>Por batch</h3>
+<ul>
+  <li>Relatório gerado em JSON + CSV + Markdown + HTML ao final de cada batch.</li>
+  <li>Stem de arquivo: <code>report_YYYY-MM-DD-HH-MM-SS</code> em horário BRT (UTC-3).</li>
+  <li>Métricas: distribuição por categoria, produto, sentimento, urgência, risco; taxa de bloqueio; tempo médio de pipeline.</li>
+  <li>KPIs regulatórios excluem registros com <code>categoria = "Bloqueado"</code>; esses alimentam métricas de segurança separadas.</li>
+</ul>
+<h3>Controle de throughput (AIMD)</h3>
+<ul>
+  <li>Detecta <code>ThrottlingException</code> do Bedrock e reduz workers multiplicativamente (<code>workers // 2</code>) e aumenta delay (<code>delay += 1,0 s</code>).</li>
+  <li>Com throttle zerado, aumenta workers aditivamente (<code>workers + 1</code>) e reduz delay (<code>delay -= 0,5 s</code>).</li>
+  <li>Estado persiste entre passes de recuperação (multi-pass) dentro de um mesmo batch.</li>
+</ul>
+</section>
+
+</div>
+</body>
+</html>

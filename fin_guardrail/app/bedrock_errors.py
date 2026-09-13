@@ -1,0 +1,171 @@
+"""Classificação de falhas de comunicação com o Amazon Bedrock.
+
+Objetivo: transformar qualquer exceção do boto3/botocore num par
+`(codigo, mensagem)` *específico e inequívoco*. Tanto o abort de startup
+(`app.main`) quanto o HTTP 502 dos endpoints (`app.routers.guardrail`) usam
+isto para dizer exatamente o que está errado — credencial ausente, SSO
+expirado, sem permissão IAM, guardrail inexistente, sem rede, throttling —
+em vez de um genérico "Bedrock indisponível".
+
+Todo `codigo` retornado começa com o prefixo ``BEDROCK_``.
+"""
+
+from __future__ import annotations
+
+from botocore.exceptions import BotoCoreError, ClientError
+
+try:  # nomes que variam entre versões do botocore
+    from botocore.exceptions import ConnectionError as _BotoConnectionError
+except Exception:  # pragma: no cover - fallback defensivo
+    _BotoConnectionError = ()
+
+try:
+    from botocore.exceptions import NoCredentialsError as _NoCredentialsError
+except Exception:  # pragma: no cover
+    _NoCredentialsError = ()
+
+# Exceções boto3 que este módulo sabe classificar. Reexportado para os
+# blocos `except` dos routers e do probe de startup.
+BEDROCK_ERRORS = (BotoCoreError, ClientError)
+
+_INVALID_CRED_CODES = {
+    "UnrecognizedClientException",
+    "InvalidSignatureException",
+    "InvalidClientTokenId",
+    "InvalidAccessKeyId",
+    "AuthFailure",
+    "SignatureDoesNotMatch",
+}
+_EXPIRED_CODES = {"ExpiredTokenException", "ExpiredToken", "RequestExpired"}
+_THROTTLE_CODES = {
+    "ThrottlingException",
+    "ThrottledException",
+    "TooManyRequestsException",
+    "Throttling",
+    "RequestLimitExceeded",
+}
+_NOT_FOUND_CODES = {"ResourceNotFoundException"}
+
+
+def aws_error_text(exc: BaseException) -> str:
+    """Texto cru do erro AWS (código + mensagem), para o campo ``erro_aws``."""
+    if isinstance(exc, ClientError) and getattr(exc, "response", None):
+        err = exc.response.get("Error", {})
+        code = err.get("Code") or "ClientError"
+        msg = err.get("Message") or str(exc)
+        return f"{code}: {msg}"
+    return f"{type(exc).__name__}: {exc}"
+
+
+def classify_bedrock_error(
+    exc: BaseException,
+    *,
+    guardrail_id: str,
+    region: str,
+    profile: str | None = None,
+) -> tuple[str, str]:
+    """Mapeia ``exc`` para ``(codigo, mensagem)``.
+
+    Nunca levanta: qualquer coisa que não seja reconhecida cai em
+    ``BEDROCK_ERRO_DESCONHECIDO`` com o erro AWS anexado.
+    """
+    ctx = f"guardrail='{guardrail_id}', regiao='{region}'"
+    if profile:
+        ctx += f", profile='{profile}'"
+
+    name = type(exc).__name__
+    aws_code = ""
+    if isinstance(exc, ClientError) and getattr(exc, "response", None):
+        aws_code = exc.response.get("Error", {}).get("Code", "") or ""
+
+    # --- credenciais -------------------------------------------------------
+    if (_NoCredentialsError and isinstance(exc, _NoCredentialsError)) or name in (
+        "NoCredentialsError",
+        "PartialCredentialsError",
+        "CredentialRetrievalError",
+    ):
+        return "BEDROCK_SEM_CREDENCIAIS", (
+            f"Nenhuma credencial AWS foi encontrada para chamar o Bedrock ({ctx}). "
+            "Defina AWS_PROFILE no .env e rode `aws sso login`, ou informe chaves "
+            "estáticas (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)."
+        )
+
+    if name == "ProfileNotFound":
+        return "BEDROCK_PROFILE_INEXISTENTE", (
+            f"O AWS_PROFILE '{profile}' não existe em ~/.aws/config ({ctx}). "
+            "Corrija o nome no .env ou configure o profile (`aws configure sso`)."
+        )
+
+    if name == "NoRegionError":
+        return "BEDROCK_REGIAO_AUSENTE", (
+            "Nenhuma região AWS configurada para o Bedrock. Defina AWS_REGION no .env."
+        )
+
+    if name in (
+        "SSOTokenLoadError",
+        "UnauthorizedSSOTokenError",
+        "TokenRetrievalError",
+    ) or aws_code in _EXPIRED_CODES:
+        alvo = profile or "<seu-profile>"
+        return "BEDROCK_SSO_EXPIRADO", (
+            f"A sessão AWS/SSO expirou ao chamar o Bedrock ({ctx}). "
+            f"Rode `aws sso login --profile {alvo}` e suba a API novamente."
+        )
+
+    if aws_code in _INVALID_CRED_CODES:
+        return "BEDROCK_CREDENCIAL_INVALIDA", (
+            f"O Bedrock rejeitou as credenciais AWS ({ctx}). "
+            "Confira AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN "
+            "ou o profile usado."
+        )
+
+    if aws_code == "AccessDeniedException":
+        return "BEDROCK_SEM_PERMISSAO", (
+            f"Credencial AWS válida, mas o Bedrock negou a chamada: falta a permissão "
+            f"IAM `bedrock:ApplyGuardrail` para o {ctx}. Ajuste a policy da role/usuário."
+        )
+
+    # --- guardrail / parâmetros -----------------------------------------------
+    if aws_code in _NOT_FOUND_CODES or (
+        aws_code == "ValidationException" and "guardrail" in str(exc).lower()
+    ):
+        return "BEDROCK_GUARDRAIL_NAO_ENCONTRADO", (
+            f"O Bedrock não encontrou o guardrail '{guardrail_id}' na região '{region}'. "
+            "Verifique GUARDRAIL_ID, GUARDRAIL_VERSION e AWS_REGION no .env."
+        )
+
+    if aws_code == "ValidationException":
+        return "BEDROCK_REQUISICAO_INVALIDA", (
+            f"O Bedrock recusou a requisição como inválida ({ctx}). "
+            f"Erro AWS: {aws_error_text(exc)}"
+        )
+
+    # --- throttling ------------------------------------------------------------
+    if aws_code in _THROTTLE_CODES:
+        return "BEDROCK_THROTTLING", (
+            f"O Bedrock está limitando (throttling) as chamadas ao {ctx}. "
+            "Repita em instantes."
+        )
+
+    # --- conectividade -------------------------------------------------------
+    if (_BotoConnectionError and isinstance(exc, _BotoConnectionError)) or name in (
+        "EndpointConnectionError",
+        "EndpointResolutionError",
+        "ConnectTimeoutError",
+        "ReadTimeoutError",
+        "ConnectionClosedError",
+        "ConnectionError",
+        "SSLError",
+        "ProxyConnectionError",
+    ):
+        return "BEDROCK_SEM_CONECTIVIDADE", (
+            f"Não foi possível alcançar o endpoint do Amazon Bedrock na região "
+            f"'{region}' ({ctx}). Verifique conexão de rede, DNS, proxy ou o VPC "
+            "endpoint do bedrock-runtime."
+        )
+
+    # --- fallback ------------------------------------------------------------
+    return "BEDROCK_ERRO_DESCONHECIDO", (
+        f"Falha inesperada ao comunicar com o Amazon Bedrock ({ctx}). "
+        f"Erro AWS: {aws_error_text(exc)}"
+    )

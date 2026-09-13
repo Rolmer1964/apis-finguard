@@ -1,0 +1,742 @@
+<title>FinGuard em Nove Peças</title>
+<meta name="description" content="Mapa visual da divisão do monólito FinGuard em sete serviços-folha independentes, um orquestrador e uma interface." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..48,600;12..48,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+
+<style>
+  :root {
+    --bg: #F4F6FB;
+    --surface: #FFFFFF;
+    --surface-2: #EDF0F7;
+    --ink: #171D2E;
+    --ink-soft: #5B6579;
+    --line: #DBE0EC;
+
+    --c-comp: #4A53CE;  --fill-comp: #E7E8FB;
+    --c-ia:   #0C7A84;  --fill-ia:   #DEEFF1;
+    --c-det:  #2A7C4C;  --fill-det:  #E0EFE6;
+    --c-stop: #C1423A;
+
+    --radius: 14px;
+    --maxw: 1140px;
+    --font-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1220;
+      --surface: #161B2A;
+      --surface-2: #1E2537;
+      --ink: #E9EBF4;
+      --ink-soft: #9AA2B6;
+      --line: #2A3247;
+
+      --c-comp: #8E97F0;  --fill-comp: rgba(120,131,232,0.16);
+      --c-ia:   #3FB2BC;  --fill-ia:   rgba(63,178,188,0.16);
+      --c-det:  #56B980;  --fill-det:  rgba(74,176,122,0.16);
+      --c-stop: #E8756B;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0E1220;
+    --surface: #161B2A;
+    --surface-2: #1E2537;
+    --ink: #E9EBF4;
+    --ink-soft: #9AA2B6;
+    --line: #2A3247;
+
+    --c-comp: #8E97F0;  --fill-comp: rgba(120,131,232,0.16);
+    --c-ia:   #3FB2BC;  --fill-ia:   rgba(63,178,188,0.16);
+    --c-det:  #56B980;  --fill-det:  rgba(74,176,122,0.16);
+    --c-stop: #E8756B;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 22px 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .brand {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .theme-btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  .theme-btn:hover { color: var(--ink); border-color: var(--ink-soft); }
+  .theme-btn:focus-visible { outline: 2px solid var(--c-comp); outline-offset: 2px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 46px 0 26px; }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(2.3rem, 6vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+  }
+  .hero h1 .accent { color: var(--c-comp); }
+  .hero .deck {
+    max-width: 60ch;
+    font-size: 1.075rem;
+    color: var(--ink-soft);
+    margin: 0 0 22px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .meta span {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 11px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- section shell ---------- */
+  section { margin-top: 66px; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--c-comp);
+    margin: 0 0 8px;
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.5rem, 3.4vw, 2rem);
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 64ch; color: var(--ink-soft); margin: 0 0 26px; }
+
+  /* ---------- figures ---------- */
+  figure { margin: 0; }
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 26px 20px 18px;
+    overflow-x: auto;
+  }
+  .diagram svg { display: block; width: 100%; height: auto; margin: 0 auto; }
+  #topo-svg { max-width: 900px; }
+  #flow-svg { max-width: 640px; }
+  figcaption {
+    max-width: 68ch;
+    margin: 16px auto 0;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+
+  /* svg theming via page CSS (no <style> inside svg) */
+  .node { stroke-width: 1.5; }
+  .n-comp { fill: var(--fill-comp); stroke: var(--c-comp); }
+  .n-ia   { fill: var(--fill-ia);   stroke: var(--c-ia); }
+  .n-det  { fill: var(--fill-det);  stroke: var(--c-det); }
+  .n-stop { fill: none; stroke: var(--c-stop); stroke-dasharray: 5 4; }
+  .n-batch { fill: none; stroke: var(--c-det); stroke-dasharray: 5 4; }
+  .svg-name { fill: var(--ink); font-family: var(--font-mono); font-weight: 500; }
+  .svg-sub  { fill: var(--ink-soft); font-family: var(--font-mono); }
+  .edge { stroke: var(--ink-soft); stroke-width: 1.5; fill: none; }
+  .edge-dash { stroke: var(--ink-soft); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  .arrowhead { fill: var(--ink-soft); }
+  .elab {
+    fill: var(--ink-soft);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    paint-order: stroke;
+  }
+  .elab-stop { fill: var(--c-stop); }
+  .badge-num { fill: #fff; font-family: var(--font-mono); font-weight: 500; font-size: 12px; }
+
+  /* ---------- legend ---------- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin-top: 20px;
+    justify-content: center;
+    font-size: 0.9rem;
+  }
+  .legend .k { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+  .legend .sw { width: 15px; height: 15px; border-radius: 5px; border: 1.5px solid; flex: none; }
+  .sw-comp { background: var(--fill-comp); border-color: var(--c-comp); }
+  .sw-ia   { background: var(--fill-ia);   border-color: var(--c-ia); }
+  .sw-det  { background: var(--fill-det);  border-color: var(--c-det); }
+
+  /* ---------- service cards ---------- */
+  .grp-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 30px 0 14px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    --cc: var(--c-ia);
+    --ccf: var(--fill-ia);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--cc);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card[data-cls="comp"] { --cc: var(--c-comp); --ccf: var(--fill-comp); }
+  .card[data-cls="det"]  { --cc: var(--c-det);  --ccf: var(--fill-det); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .cls-chip {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: var(--ccf);
+    color: var(--cc);
+    padding: 4px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .st {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .st-live { color: var(--c-det); }
+  .card h3 {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 1.02rem;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .card h3 .port { color: var(--ink-soft); font-size: 0.85rem; }
+  .role { margin: 0; font-size: 0.95rem; }
+  .role b { color: var(--cc); font-weight: 600; }
+  .eps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .eps code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 7px;
+    color: var(--ink);
+  }
+  .dep {
+    margin: auto 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-size: 0.83rem;
+    color: var(--ink-soft);
+  }
+  .dep b { font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--cc); display: block; margin-bottom: 2px; }
+
+  /* ---------- principles ---------- */
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .pr {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .pr .tag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--c-comp);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .pr p { margin: 0; font-size: 0.93rem; color: var(--ink-soft); }
+  .pr p b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- build order ---------- */
+  .steps { display: flex; flex-direction: column; gap: 2px; }
+  .step {
+    display: grid;
+    grid-template-columns: 58px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .step:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+  .step:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+  .step + .step { border-top: none; }
+  .step .ph { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+  .step .nm { font-family: var(--font-mono); font-size: 0.95rem; }
+  .step .stt { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+  .step.done .nm { color: var(--ink); }
+  .step.done .stt { color: var(--c-det); }
+  .step .dot { width: 8px; height: 8px; border-radius: 999px; border: 1.5px solid var(--ink-soft); display: inline-block; margin-right: 7px; vertical-align: middle; }
+  .step.done .dot { background: var(--c-det); border-color: var(--c-det); }
+  .rule-note { margin-top: 12px; font-size: 0.9rem; color: var(--ink-soft); }
+  .rule-note code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border-radius: 5px; padding: 2px 6px; }
+
+  footer {
+    margin-top: 74px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 560px) {
+    .step { grid-template-columns: 46px 1fr; }
+    .step .stt { grid-column: 2; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card, .pr, .theme-btn { transition: border-color 0.18s ease, transform 0.18s ease; }
+    .card:hover { transform: translateY(-2px); border-color: var(--cc); }
+  }
+</style>
+
+<div class="topbar">
+  <span class="brand">FinGuard · arquitetura distribuída</span>
+  <button class="theme-btn" id="themeToggle" type="button" aria-label="Alternar tema claro e escuro">tema</button>
+</div>
+
+<div class="wrap">
+
+  <header class="hero">
+    <h1>Uma API monolítica,<br /><span class="accent">nove serviços</span> que rodam sozinhos</h1>
+    <p class="deck">
+      O FinGuard analisava reclamações bancárias num único processo: guardrail, triagem por IA,
+      risco com RAG, consolidação de regras e relatório gerencial. A divisão quebra esse pipeline
+      em serviços independentes — cada um com seus próprios endpoints, sem importar nada dos outros.
+    </p>
+    <div class="meta">
+      <span>9 serviços</span>
+      <span>portas 8000–8008</span>
+      <span>4 no ar: guardrail · consolidate · triage · rag</span>
+      <span>origem: monólito finguard8</span>
+    </div>
+  </header>
+
+  <!-- ============ TOPOLOGIA ============ -->
+  <section id="topologia">
+    <p class="eyebrow">Topologia</p>
+    <h2>O orquestrador no centro, as folhas em volta</h2>
+    <p class="lede">
+      Só o <b>fin_orchestrator</b> conhece o endereço dos outros serviços. Ele roda o pipeline
+      (guardrail → triagem → RAG → risco → consolidação) e também repassa as consultas de leitura da
+      interface. As folhas não se conhecem, e o <b>fin_web</b> fala com um único serviço: o orquestrador.
+    </p>
+
+    <figure class="diagram">
+      <svg id="topo-svg" viewBox="0 0 1000 700" role="img"
+           aria-label="Diagrama radial: fin_web alimenta o fin_orchestrator no centro; o orquestrador chama sete serviços-folha ao redor — fin_guardrail, fin_triage e fin_rag à esquerda; fin_risk, fin_consolidate e fin_report_writer à direita; fin_traces embaixo.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="arrowhead" d="M0 0 L10 5 L0 10 z" />
+          </marker>
+        </defs>
+
+        <!-- edges (drawn first, under nodes) -->
+        <line class="edge" x1="500" y1="90" x2="500" y2="298" marker-end="url(#ah)" />
+        <text class="elab" x="512" y="196" text-anchor="start">renderiza via HTTP</text>
+
+        <!-- left fan from (380,350) -->
+        <line class="edge" x1="380" y1="350" x2="246" y2="156" marker-end="url(#ah)" />
+        <line class="edge" x1="380" y1="350" x2="246" y2="350" marker-end="url(#ah)" />
+        <line class="edge" x1="380" y1="350" x2="246" y2="544" marker-end="url(#ah)" />
+        <text class="elab" x="300" y="236" text-anchor="middle">/v1/guardrail/*</text>
+        <text class="elab" x="322" y="338" text-anchor="middle">/v1/triage</text>
+        <text class="elab" x="300" y="464" text-anchor="middle">/v1/rag/retrieve</text>
+
+        <!-- right fan from (620,350) -->
+        <line class="edge" x1="620" y1="350" x2="754" y2="156" marker-end="url(#ah)" />
+        <line class="edge" x1="620" y1="350" x2="754" y2="350" marker-end="url(#ah)" />
+        <line class="edge" x1="620" y1="350" x2="754" y2="544" marker-end="url(#ah)" />
+        <text class="elab" x="700" y="236" text-anchor="middle">/v1/risk</text>
+        <text class="elab" x="678" y="338" text-anchor="middle">/v1/consolidate</text>
+        <text class="elab" x="700" y="464" text-anchor="middle">/v1/reports</text>
+
+        <!-- bottom -->
+        <line class="edge" x1="500" y1="402" x2="500" y2="558" marker-end="url(#ah)" />
+        <text class="elab" x="512" y="484" text-anchor="start">/v1/traces</text>
+
+        <!-- nodes -->
+        <g>
+          <rect class="node n-comp" x="405" y="26" width="190" height="64" rx="11" />
+          <text class="svg-name" x="500" y="52" text-anchor="middle" font-size="13">fin_web</text>
+          <text class="svg-sub" x="500" y="70" text-anchor="middle" font-size="11">8008 · interface (SSR)</text>
+        </g>
+        <g>
+          <rect class="node n-comp" x="378" y="300" width="244" height="102" rx="13" stroke-width="2.25" />
+          <text class="svg-name" x="500" y="336" text-anchor="middle" font-size="16">fin_orchestrator</text>
+          <text class="svg-sub" x="500" y="358" text-anchor="middle" font-size="11">8000 · /analyze · /batch (AIMD)</text>
+          <text class="svg-sub" x="500" y="376" text-anchor="middle" font-size="11">ponto único de entrada</text>
+        </g>
+
+        <g>
+          <rect class="node n-ia" x="46" y="118" width="200" height="76" rx="11" />
+          <text class="svg-name" x="146" y="152" text-anchor="middle" font-size="13">fin_guardrail</text>
+          <text class="svg-sub" x="146" y="170" text-anchor="middle" font-size="11">8001 · no ar</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="46" y="312" width="200" height="76" rx="11" />
+          <text class="svg-name" x="146" y="346" text-anchor="middle" font-size="13">fin_triage</text>
+          <text class="svg-sub" x="146" y="364" text-anchor="middle" font-size="11">8002 · no ar</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="46" y="506" width="200" height="76" rx="11" />
+          <text class="svg-name" x="146" y="540" text-anchor="middle" font-size="13">fin_rag</text>
+          <text class="svg-sub" x="146" y="558" text-anchor="middle" font-size="11">8003 · no ar</text>
+        </g>
+
+        <g>
+          <rect class="node n-ia" x="754" y="118" width="200" height="76" rx="11" />
+          <text class="svg-name" x="854" y="152" text-anchor="middle" font-size="13">fin_risk</text>
+          <text class="svg-sub" x="854" y="170" text-anchor="middle" font-size="11">8004 · planejado</text>
+        </g>
+        <g>
+          <rect class="node n-det" x="754" y="312" width="200" height="76" rx="11" />
+          <text class="svg-name" x="854" y="346" text-anchor="middle" font-size="13">fin_consolidate</text>
+          <text class="svg-sub" x="854" y="364" text-anchor="middle" font-size="11">8005 · no ar</text>
+        </g>
+        <g>
+          <rect class="node n-det" x="754" y="506" width="200" height="76" rx="11" />
+          <text class="svg-name" x="854" y="536" text-anchor="middle" font-size="13">fin_report_writer</text>
+          <text class="svg-sub" x="854" y="554" text-anchor="middle" font-size="11">8006 · planejado</text>
+        </g>
+
+        <g>
+          <rect class="node n-det" x="405" y="558" width="190" height="64" rx="11" />
+          <text class="svg-name" x="500" y="584" text-anchor="middle" font-size="13">fin_traces</text>
+          <text class="svg-sub" x="500" y="602" text-anchor="middle" font-size="11">8007 · planejado</text>
+        </g>
+      </svg>
+
+      <div class="legend">
+        <span class="k"><span class="sw sw-comp"></span> Composição — orquestrador e interface</span>
+        <span class="k"><span class="sw sw-ia"></span> IA — chama o Amazon Bedrock</span>
+        <span class="k"><span class="sw sw-det"></span> Determinístico — sem AWS, sem rede</span>
+      </div>
+
+      <figcaption>
+        Toda seta é uma chamada HTTP saindo do orquestrador. Nenhuma seta liga uma folha a outra —
+        essa é a garantia da divisão: cada serviço sobe e funciona isolado.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ PERCURSO ============ -->
+  <section id="percurso">
+    <p class="eyebrow">Percurso</p>
+    <h2>O caminho de uma reclamação</h2>
+    <p class="lede">
+      Para cada registro, o orquestrador percorre os serviços nesta ordem. O guardrail entra duas vezes —
+      na porta de entrada e na de saída. Se a entrada é bloqueada, o fluxo para ali mesmo.
+    </p>
+
+    <figure class="diagram">
+      <svg id="flow-svg" viewBox="0 0 760 776" role="img"
+           aria-label="Fluxo vertical em sete passos: 1 guardrail de entrada, 2 triagem com Haiku, 3 RAG retrieve, 4 risco com Sonnet, 5 consolidação, 6 guardrail de saída, 7 traces. Um desvio no passo 1 leva a resposta educada e fim. Ao término de um lote, os registros vão para o fin_report_writer.">
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="arrowhead" d="M0 0 L10 5 L0 10 z" />
+          </marker>
+        </defs>
+
+        <!-- vertical edges -->
+        <line class="edge" x1="150" y1="80" x2="150" y2="120" marker-end="url(#ah2)" />
+        <line class="edge" x1="150" y1="176" x2="150" y2="216" marker-end="url(#ah2)" />
+        <line class="edge" x1="150" y1="272" x2="150" y2="312" marker-end="url(#ah2)" />
+        <line class="edge" x1="150" y1="368" x2="150" y2="408" marker-end="url(#ah2)" />
+        <line class="edge" x1="150" y1="464" x2="150" y2="504" marker-end="url(#ah2)" />
+        <line class="edge" x1="150" y1="560" x2="150" y2="600" marker-end="url(#ah2)" />
+
+        <text class="elab" x="168" y="104" text-anchor="start">libera a reclamação</text>
+        <text class="elab" x="168" y="200" text-anchor="start">categoria · produto · urgência</text>
+        <text class="elab" x="168" y="296" text-anchor="start">policy_context (trechos da política)</text>
+        <text class="elab" x="168" y="392" text-anchor="start">risk_level · ações recomendadas</text>
+        <text class="elab" x="168" y="488" text-anchor="start">SLA · área · overrides §4.3</text>
+        <text class="elab" x="168" y="584" text-anchor="start">texto sem PII → registra execução</text>
+
+        <!-- blocked branch -->
+        <path class="edge" d="M300 52 L360 52 L360 44" marker-end="url(#ah2)" />
+        <rect class="node n-stop" x="360" y="24" width="356" height="48" rx="10" />
+        <text class="svg-name elab-stop" x="538" y="53" text-anchor="middle" font-size="12">bloqueada → resposta educada, fim</text>
+
+        <!-- batch tail -->
+        <path class="edge-dash" d="M150 656 L150 692" marker-end="url(#ah2)" />
+        <rect class="node n-batch" x="44" y="692" width="440" height="60" rx="11" />
+        <text class="svg-sub" x="264" y="716" text-anchor="middle" font-size="11.5">no /batch: ao fim do lote, todos os registros →</text>
+        <text class="svg-name" x="264" y="736" text-anchor="middle" font-size="12.5">fin_report_writer  ·  /v1/reports</text>
+
+        <!-- step pills -->
+        <g>
+          <rect class="node n-ia" x="24" y="24" width="276" height="56" rx="11" />
+          <circle cx="52" cy="52" r="13" fill="var(--c-ia)" />
+          <text class="badge-num" x="52" y="56" text-anchor="middle">1</text>
+          <text class="svg-name" x="176" y="56" text-anchor="middle" font-size="13">Guardrail · entrada</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="24" y="120" width="276" height="56" rx="11" />
+          <circle cx="52" cy="148" r="13" fill="var(--c-ia)" />
+          <text class="badge-num" x="52" y="152" text-anchor="middle">2</text>
+          <text class="svg-name" x="176" y="152" text-anchor="middle" font-size="13">Triagem — Haiku</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="24" y="216" width="276" height="56" rx="11" />
+          <circle cx="52" cy="244" r="13" fill="var(--c-ia)" />
+          <text class="badge-num" x="52" y="248" text-anchor="middle">3</text>
+          <text class="svg-name" x="176" y="248" text-anchor="middle" font-size="13">RAG — retrieve</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="24" y="312" width="276" height="56" rx="11" />
+          <circle cx="52" cy="340" r="13" fill="var(--c-ia)" />
+          <text class="badge-num" x="52" y="344" text-anchor="middle">4</text>
+          <text class="svg-name" x="176" y="344" text-anchor="middle" font-size="13">Risco — Sonnet</text>
+        </g>
+        <g>
+          <rect class="node n-det" x="24" y="408" width="276" height="56" rx="11" />
+          <circle cx="52" cy="436" r="13" fill="var(--c-det)" />
+          <text class="badge-num" x="52" y="440" text-anchor="middle">5</text>
+          <text class="svg-name" x="176" y="440" text-anchor="middle" font-size="13">Consolidação</text>
+        </g>
+        <g>
+          <rect class="node n-ia" x="24" y="504" width="276" height="56" rx="11" />
+          <circle cx="52" cy="532" r="13" fill="var(--c-ia)" />
+          <text class="badge-num" x="52" y="536" text-anchor="middle">6</text>
+          <text class="svg-name" x="176" y="536" text-anchor="middle" font-size="13">Guardrail · saída</text>
+        </g>
+        <g>
+          <rect class="node n-det" x="24" y="600" width="276" height="56" rx="11" />
+          <circle cx="52" cy="628" r="13" fill="var(--c-det)" />
+          <text class="badge-num" x="52" y="632" text-anchor="middle">7</text>
+          <text class="svg-name" x="176" y="632" text-anchor="middle" font-size="13">Traces</text>
+        </g>
+      </svg>
+
+      <figcaption>
+        Passos 1–4 e 6 chamam o Amazon Bedrock; 5 e 7 são pura lógica local. O <b>fin_rag</b> (passo 3)
+        entrega os trechos da política prontos, e o <b>fin_risk</b> só os recebe — nunca chama o RAG.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ SERVIÇOS ============ -->
+  <section id="servicos">
+    <p class="eyebrow">Os serviços</p>
+    <h2>O que cada peça faz</h2>
+    <p class="lede">
+      Sete funções-folha e duas camadas de composição. Portas 8000–8008. Verde = <em>no ar</em>, cinza = <em>planejado</em>.
+    </p>
+
+    <p class="grp-label">Camada de composição — pipeline e interface</p>
+    <div class="grid">
+      <article class="card" data-cls="comp">
+        <div class="card-top"><span class="cls-chip">Composição</span><span class="st">○ planejado</span></div>
+        <h3>fin_orchestrator <span class="port">:8000</span></h3>
+        <p class="role"><b>O ponto único de entrada.</b> Roda o pipeline em <code>/analyze</code> e <code>/batch</code> (com o controle de vazão AIMD) chamando os sete serviços na ordem certa — e repassa as consultas de leitura que a interface precisa, como proxies finos. É o único serviço que conhece o endereço dos outros.</p>
+        <ul class="eps"><li><code>POST /analyze</code></li><li><code>POST /batch</code></li><li><code>GET /reports · /traces · /decisorio/stats</code></li><li><code>GET /rag/stats</code> · <code>POST /rag/ingest</code></li><li><code>GET /health/downstream</code></li></ul>
+        <p class="dep"><b>Depende de</b> todos os sete serviços-folha.</p>
+      </article>
+
+      <article class="card" data-cls="comp">
+        <div class="card-top"><span class="cls-chip">Composição</span><span class="st">○ planejado</span></div>
+        <h3>fin_web <span class="port">:8008</span></h3>
+        <p class="role"><b>A vitrine.</b> Páginas HTML renderizadas no servidor — formulário, relatórios, log de execução, painel decisório, admin. Não fala com nenhuma folha: toda leitura e todo envio passam pelo orquestrador.</p>
+        <ul class="eps"><li><code>GET /</code></li><li><code>GET /reports</code></li><li><code>GET /traces</code></li><li><code>GET /admin</code></li></ul>
+        <p class="dep"><b>Depende de</b> fin_orchestrator — e só ele.</p>
+      </article>
+    </div>
+
+    <p class="grp-label">Serviços-folha — cada um roda isolado</p>
+    <div class="grid">
+      <article class="card" data-cls="ia">
+        <div class="card-top"><span class="cls-chip">IA · Bedrock</span><span class="st st-live">● no ar</span></div>
+        <h3>fin_guardrail <span class="port">:8001</span></h3>
+        <p class="role"><b>O porteiro.</b> Valida a reclamação na entrada — bloqueia prompt injection, ameaças e texto fora de escopo — e higieniza a saída, removendo CPF, cartão, conta, nome e palavrão.</p>
+        <ul class="eps"><li><code>POST /v1/guardrail/input</code></li><li><code>POST /v1/guardrail/output</code></li></ul>
+        <p class="dep"><b>Depende de</b> Amazon Bedrock Guardrails. Nada mais.</p>
+      </article>
+
+      <article class="card" data-cls="ia">
+        <div class="card-top"><span class="cls-chip">IA · Bedrock</span><span class="st st-live">● no ar</span></div>
+        <h3>fin_triage <span class="port">:8002</span></h3>
+        <p class="role"><b>A triagem.</b> Claude Haiku classifica a reclamação: categoria, produto, sentimento, urgência e um resumo neutro — já aplicando os gatilhos de urgência da POL-SAC-001.</p>
+        <ul class="eps"><li><code>POST /v1/triage</code></li></ul>
+        <p class="dep"><b>Depende de</b> Amazon Bedrock — modelo Haiku.</p>
+      </article>
+
+      <article class="card" data-cls="ia">
+        <div class="card-top"><span class="cls-chip">IA · Bedrock</span><span class="st st-live">● no ar</span></div>
+        <h3>fin_rag <span class="port">:8003</span></h3>
+        <p class="role"><b>A memória da política.</b> Indexa a Política Interna com FAISS e embeddings Titan, e devolve os trechos mais relevantes para uma consulta — já formatados como <code>policy_context</code>.</p>
+        <ul class="eps"><li><code>POST /v1/rag/retrieve</code></li><li><code>POST /v1/rag/ingest</code></li><li><code>GET /v1/rag/stats</code></li></ul>
+        <p class="dep"><b>Depende de</b> Amazon Bedrock — Titan — e do índice em disco.</p>
+      </article>
+
+      <article class="card" data-cls="ia">
+        <div class="card-top"><span class="cls-chip">IA · Bedrock</span><span class="st">○ planejado</span></div>
+        <h3>fin_risk <span class="port">:8004</span></h3>
+        <p class="role"><b>A análise de risco.</b> Claude Sonnet avalia o nível de risco e lista as ações imediatas, usando os trechos da política que recebe prontos no corpo da requisição.</p>
+        <ul class="eps"><li><code>POST /v1/risk</code></li></ul>
+        <p class="dep"><b>Depende de</b> Amazon Bedrock — Sonnet. Não chama o fin_rag.</p>
+      </article>
+
+      <article class="card" data-cls="det">
+        <div class="card-top"><span class="cls-chip">Determinístico</span><span class="st st-live">● no ar</span></div>
+        <h3>fin_consolidate <span class="port">:8005</span></h3>
+        <p class="role"><b>As regras da casa.</b> Aplica a POL-SAC-001 sem IA: SLA por urgência, área responsável por produto e os overrides de canal regulatório — Banco Central, Procon, Justiça.</p>
+        <ul class="eps"><li><code>POST /v1/consolidate</code></li></ul>
+        <p class="dep"><b>Depende de</b> ninguém. Lógica pura, sem estado.</p>
+      </article>
+
+      <article class="card" data-cls="det">
+        <div class="card-top"><span class="cls-chip">Determinístico</span><span class="st">○ planejado</span></div>
+        <h3>fin_report_writer <span class="port">:8006</span></h3>
+        <p class="role"><b>O relatório.</b> Recebe os registros processados e gera o relatório gerencial em JSON, CSV, Markdown e HTML com gráficos, além de armazenar e servir os artefatos.</p>
+        <ul class="eps"><li><code>POST /v1/reports</code></li><li><code>GET /v1/reports/{stem}</code></li><li><code>GET /output/{arquivo}</code></li></ul>
+        <p class="dep"><b>Depende de</b> ninguém. Grava em disco.</p>
+      </article>
+
+      <article class="card" data-cls="det">
+        <div class="card-top"><span class="cls-chip">Determinístico</span><span class="st">○ planejado</span></div>
+        <h3>fin_traces <span class="port">:8007</span></h3>
+        <p class="role"><b>O diário de bordo.</b> Guarda o log de execução em memória e serve o painel decisório: matriz urgência × risco, volume por canal, área e prazo de resposta.</p>
+        <ul class="eps"><li><code>POST /v1/traces</code></li><li><code>GET /v1/traces</code></li><li><code>GET /v1/decisorio/stats</code></li></ul>
+        <p class="dep"><b>Depende de</b> ninguém. Estado só em memória.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ PRINCÍPIOS ============ -->
+  <section id="principios">
+    <p class="eyebrow">Regras da divisão</p>
+    <h2>Como as peças se encaixam sem se prender</h2>
+
+    <div class="principles">
+      <div class="pr">
+        <span class="tag">// autonomia</span>
+        <p><b>Cada folha roda sozinha.</b> Sobe, responde <code>/health</code> e cumpre sua função sem nenhum outro serviço no ar.</p>
+      </div>
+      <div class="pr">
+        <span class="tag">// sem acoplamento de código</span>
+        <p><b>Folha não importa folha.</b> Zero <code>import</code> entre serviços. O código comum é copiado do fin_guardrail, nunca compartilhado como pacote.</p>
+      </div>
+      <div class="pr">
+        <span class="tag">// ponto único de entrada</span>
+        <p><b>Só o orquestrador conhece os outros.</b> Ele é o único que guarda o endereço de cada serviço. O fin_web chama apenas o orquestrador; nenhuma folha chama outra.</p>
+      </div>
+      <div class="pr">
+        <span class="tag">// risco desacoplado</span>
+        <p><b>O risco não conhece o RAG.</b> O orquestrador busca a política no fin_rag e injeta o contexto no fin_risk. Trocar o RAG não toca o risco.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ORDEM ============ -->
+  <section id="ordem">
+    <p class="eyebrow">Roteiro</p>
+    <h2>Ordem de construção</h2>
+    <p class="lede">Sem-AWS e sem-dependência primeiro; a cola por último. Dá para parar em qualquer fase sem perder o fio.</p>
+
+    <div class="steps">
+      <div class="step done"><span class="ph">Fase 0</span><span class="nm"><span class="dot"></span>fin_guardrail</span><span class="stt">no ar</span></div>
+      <div class="step done"><span class="ph">Fase 1</span><span class="nm"><span class="dot"></span>fin_consolidate</span><span class="stt">no ar</span></div>
+      <div class="step done"><span class="ph">Fase 2</span><span class="nm"><span class="dot"></span>fin_triage</span><span class="stt">no ar</span></div>
+      <div class="step done"><span class="ph">Fase 3</span><span class="nm"><span class="dot"></span>fin_rag</span><span class="stt">no ar</span></div>
+      <div class="step"><span class="ph">Fase 4</span><span class="nm"><span class="dot"></span>fin_risk</span><span class="stt">planejado</span></div>
+      <div class="step"><span class="ph">Fase 5</span><span class="nm"><span class="dot"></span>fin_report_writer</span><span class="stt">planejado</span></div>
+      <div class="step"><span class="ph">Fase 6</span><span class="nm"><span class="dot"></span>fin_traces</span><span class="stt">planejado</span></div>
+      <div class="step"><span class="ph">Fase 7</span><span class="nm"><span class="dot"></span>fin_orchestrator</span><span class="stt">planejado</span></div>
+      <div class="step"><span class="ph">Fase 8</span><span class="nm"><span class="dot"></span>fin_web</span><span class="stt">planejado</span></div>
+      <div class="step"><span class="ph">Fase 9</span><span class="nm"><span class="dot"></span>docker-compose + smoke E2E</span><span class="stt">planejado</span></div>
+    </div>
+    <p class="rule-note">Fonte da verdade: <code>apis_finguard/docs/PLANO_DIVISAO.md</code> — atualizado ao fim de cada sessão.</p>
+  </section>
+
+  <footer>
+    Documento de arquitetura · derivado de PLANO_DIVISAO.md · setembro / 2026
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById("themeToggle");
+    var root = document.documentElement;
+    function current() {
+      if (root.dataset.theme) return root.dataset.theme;
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    try {
+      var saved = localStorage.getItem("finguard-theme");
+      if (saved === "dark" || saved === "light") root.dataset.theme = saved;
+    } catch (e) {}
+    btn.addEventListener("click", function () {
+      var next = current() === "dark" ? "light" : "dark";
+      root.dataset.theme = next;
+      try { localStorage.setItem("finguard-theme", next); } catch (e) {}
+    });
+  })();
+</script>
