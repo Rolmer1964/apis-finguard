@@ -6,25 +6,30 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Publicar/atualizar as imagens: tools/publish_ecr.sh (roda local, faz
-# build+tag+push das 9 imagens). ECR_REGISTRY vem do .env
-# (default: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com).
+# build+tag+push — cada imagem ganha :latest e :<sha do commit>).
+# Fazer o deploy de uma tag específica: tools/deploy.sh (roda local, faz
+# SSH na instância e passa IMAGE_TAG na hora do pull/up).
+#
+# ECR_REGISTRY vem do .env (default: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com).
+# IMAGE_TAG default "latest" — tools/deploy.sh sobrescreve com o SHA desejado
+# na chamada (não precisa editar o .env pra cada deploy).
 
 services:
   fin_guardrail:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_guardrail:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_guardrail:${IMAGE_TAG:-latest}
   fin_triage:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_triage:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_triage:${IMAGE_TAG:-latest}
   fin_rag:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_rag:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_rag:${IMAGE_TAG:-latest}
   fin_risk:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_risk:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_risk:${IMAGE_TAG:-latest}
   fin_consolidate:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_consolidate:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_consolidate:${IMAGE_TAG:-latest}
   fin_report_writer:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_report_writer:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_report_writer:${IMAGE_TAG:-latest}
   fin_traces:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_traces:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_traces:${IMAGE_TAG:-latest}
   fin_orchestrator:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_orchestrator:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_orchestrator:${IMAGE_TAG:-latest}
   fin_web:
-    image: ${ECR_REGISTRY}/apis-finguard/fin_web:latest
+    image: ${ECR_REGISTRY}/apis-finguard/fin_web:${IMAGE_TAG:-latest}
