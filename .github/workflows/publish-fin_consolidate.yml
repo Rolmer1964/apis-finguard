@@ -4,6 +4,9 @@ name: Publish fin_consolidate
 # push na master (develop nao dispara nada). Autentica na AWS via OIDC -
 # sem chave fixa guardada no GitHub. Nao mexe na EC2; o deploy continua
 # manual via tools/deploy.sh.
+#
+# Trust policy da role atualizada em 2026-09-14 para o dono do repo
+# Rolmer-Organization (pos-transferencia).
 
 on:
   push:
