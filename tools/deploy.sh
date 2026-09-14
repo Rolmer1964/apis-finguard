@@ -5,6 +5,13 @@
 # ANTHROPIC_API_KEY continua sendo buscado pelo proprio fin_triage/fin_risk
 # no SSM Parameter Store, no boot deles.
 #
+# O "up -d" usa --no-deps: sem isso, o Compose inclui as dependencias por
+# padrao (ex.: fin_web depende do fin_orchestrator, que depende das 7
+# folhas), entao pedir so "fin_web" recriaria a cadeia inteira - ja
+# aconteceu (deploy de fin_web recriou os 9 containers, sem necessidade).
+# ("pull" ja e restrito por padrao - so ganha dependencias com
+# --include-deps, que a gente NAO usa.)
+#
 # Uso:
 #   bash tools/deploy.sh fin_triage fin_risk            # deploya o SHA do commit atual
 #   bash tools/deploy.sh --tag 25f8108 fin_triage        # deploya uma tag especifica (rollback)
@@ -55,7 +62,7 @@ ssh -i "$DEPLOY_EC2_KEY" "${DEPLOY_EC2_USER}@${DEPLOY_EC2_HOST}" "
   cd apis_finguard
   export IMAGE_TAG='${TAG}'
   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull ${SERVICES[*]}
-  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d ${SERVICES[*]}
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps ${SERVICES[*]}
   docker compose -f docker-compose.yml -f docker-compose.prod.yml ps ${SERVICES[*]}
 "
 
